@@ -118,8 +118,8 @@ export const GRADE_CONFIG = {
 // API 配置
 // ============================================================
 export const API_CONFIG = {
-  // 后端 API 地址（部署后替换）
-  baseUrl: process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001/api',
+  // 后端 API 地址（Railway 部署）
+  baseUrl: process.env.EXPO_PUBLIC_API_URL || 'https://tennis-coach-ai-emily2-production.up.railway.app/api',
   timeout: 30000,
 };
 
