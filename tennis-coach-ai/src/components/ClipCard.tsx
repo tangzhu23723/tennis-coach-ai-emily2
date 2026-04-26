@@ -12,6 +12,9 @@ interface ClipCardProps {
   onPress?: (clip: Clip) => void;
   thumbnail?: string;
   videoUri?: string; // 原始视频URI，用于播放该片段
+  clipIndex?: number; // 片段编号（1, 2, 3...）
+  showAnalysisButton?: boolean; // 是否显示AI分析按钮
+  analysisResult?: string; // AI分析结果（可选）
 }
 
 // ============================================================
@@ -24,11 +27,26 @@ export const ClipCard: React.FC<ClipCardProps> = ({
   clip, 
   onPress, 
   thumbnail, 
-  videoUri 
+  videoUri,
+  clipIndex,
+  showAnalysisButton = false,
+  analysisResult,
 }) => {
-  const shotConfig = SHOT_TYPES[clip.type] || SHOT_TYPES.unknown;
-  const confidenceLevel = getConfidenceLevel(clip.confidence);
   const [showVideo, setShowVideo] = useState(false);
+  const [showAnalysis, setShowAnalysis] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  
+  // 置信度等级
+  const confidenceLevel = getConfidenceLevel(clip.confidence);
+  
+  // 模拟AI分析功能
+  const handleAnalyze = async () => {
+    setIsAnalyzing(true);
+    // 模拟AI分析过程
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    setShowAnalysis(true);
+    setIsAnalyzing(false);
+  };
   
   // Expo AV 相关 (原生平台)
   const [isPlaying, setIsPlaying] = useState(false);
@@ -146,13 +164,18 @@ export const ClipCard: React.FC<ClipCardProps> = ({
         activeOpacity={0.8}
       >
         <View style={styles.thumbnailBg}>
-          <Text style={styles.thumbnailIcon}>{shotConfig.icon}</Text>
+          <Text style={styles.thumbnailIcon}>🎾</Text>
+          {clipIndex && (
+            <View style={styles.clipIndexBadge}>
+              <Text style={styles.clipIndexText}>{clipIndex}</Text>
+            </View>
+          )}
         </View>
         
         {/* 播放提示 */}
         {videoUri && (
           <View style={styles.playHint}>
-            <Text style={styles.playHintText}>▶️ 播放片段</Text>
+            <Text style={styles.playHintText}>▶️ 播放</Text>
           </View>
         )}
         
@@ -174,32 +197,60 @@ export const ClipCard: React.FC<ClipCardProps> = ({
       {/* 详情区域 */}
       <View style={styles.details}>
         <View style={styles.header}>
-          <View style={[styles.typeBadge, { backgroundColor: shotConfig.color }]}>
-            <Text style={styles.typeIcon}>{shotConfig.icon}</Text>
-            <Text style={styles.typeText}>{shotConfig.label}</Text>
+          {/* 片段编号 */}
+          <View style={styles.clipIndexHeader}>
+            <Text style={styles.clipTitle}>
+              片段 {clipIndex || ''}
+            </Text>
+            <Text style={styles.clipDuration}>
+              📹 {formatDuration(clip.endTime - clip.startTime)}
+            </Text>
           </View>
           
+          {/* 质量评分 */}
           <View
-            style={[styles.confidenceBadge, { backgroundColor: confidenceLevel.color + '30' }]}
+            style={[styles.qualityBadge, { backgroundColor: confidenceLevel.color + '30' }]}
           >
-            <Text style={[styles.confidenceText, { color: confidenceLevel.color }]}>
-              {confidenceLevel.label}
+            <Text style={[styles.qualityText, { color: confidenceLevel.color }]}>
+              {confidenceLevel.label} ({confidenceToPercent(clip.confidence)}%)
             </Text>
           </View>
         </View>
 
+        {/* 描述 */}
         {clip.description && (
-          <Text style={styles.description} numberOfLines={2}>
+          <Text style={styles.description}>
             {clip.description}
           </Text>
         )}
 
+        {/* AI分析按钮或结果 */}
+        {showAnalysisButton && (
+          <View style={styles.analysisSection}>
+            {!showAnalysis ? (
+              <TouchableOpacity 
+                style={styles.analyzeButton}
+                onPress={handleAnalyze}
+                disabled={isAnalyzing}
+              >
+                <Text style={styles.analyzeButtonText}>
+                  {isAnalyzing ? '🤖 AI分析中...' : '🤖 让AI分析这个片段'}
+                </Text>
+              </TouchableOpacity>
+            ) : (
+              <View style={styles.analysisResult}>
+                <Text style={styles.analysisTitle}>🤖 AI 分析结果</Text>
+                <Text style={styles.analysisText}>
+                  {analysisResult || `该片段动作较为流畅，${confidenceLevel.label === '高' ? '整体表现良好' : '有一定提升空间'}。建议注意动作细节，保持节奏稳定。`}
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
+
         <View style={styles.footer}>
           <Text style={styles.timeRange}>
-            📹 {formatDuration(clip.endTime - clip.startTime)} 片段
-          </Text>
-          <Text style={styles.confidencePercent}>
-            置信度 {confidenceToPercent(clip.confidence)}%
+            ⏱️ {formatDuration(clip.startTime)} - {formatDuration(clip.endTime)}
           </Text>
         </View>
       </View>
@@ -276,6 +327,22 @@ const styles = StyleSheet.create({
     fontSize: 48,
     opacity: 0.8,
   },
+  clipIndexBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: COLORS.primary,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  clipIndexText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '700',
+  },
   playHint: {
     position: 'absolute',
     top: 8,
@@ -312,50 +379,87 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    justifyContent: 'space-between',
     marginBottom: 10,
   },
-  typeBadge: {
+  clipIndexHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 14,
-    gap: 5,
+    gap: 12,
   },
-  typeIcon: {
-    fontSize: 13,
+  clipTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.text,
   },
-  typeText: {
-    color: '#FFF',
-    fontSize: 13,
-    fontWeight: '600',
+  clipDuration: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
   },
-  confidenceBadge: {
+  qualityBadge: {
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 10,
   },
-  confidenceText: {
+  qualityText: {
     fontSize: 12,
     fontWeight: '600',
   },
   description: {
-    color: COLORS.textSecondary,
+    color: COLORS.text,
     fontSize: 13,
     lineHeight: 18,
-    marginBottom: 10,
+    marginBottom: 12,
   },
-  footer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  
+  // AI分析区域
+  analysisSection: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+  },
+  analyzeButton: {
+    backgroundColor: COLORS.primary,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 10,
     alignItems: 'center',
   },
-  timeRange: {
-    color: COLORS.textSecondary,
-    fontSize: 12,
+  analyzeButtonText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '600',
   },
-  confidencePercent: {
+  analysisResult: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 10,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  analysisTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.text,
+    marginBottom: 8,
+  },
+  analysisText: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    lineHeight: 20,
+  },
+  
+  footer: {
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+    alignItems: 'center',
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+  },
+  timeRange: {
     color: COLORS.textSecondary,
     fontSize: 12,
   },

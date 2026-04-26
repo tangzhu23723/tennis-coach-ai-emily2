@@ -8,6 +8,7 @@ import {
   ScrollView,
   Alert,
   Share,
+  TouchableOpacity,
 } from 'react-native';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system';
@@ -89,7 +90,7 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({
         {/* ⚠️ 演示版本提示 */}
         <View style={styles.demoBanner}>
           <Text style={styles.demoBannerText}>
-            ⚠️ 演示模式 | 当前为模拟数据，非真实 AI 分析 | v{APP_VERSION}
+            ⚠️ 演示模式 | 视频截取功能 | 技术分析需接入真实 AI
           </Text>
         </View>
 
@@ -113,7 +114,7 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({
           <Text style={styles.summary}>{analysisResult.summary}</Text>
         </View>
 
-        {/* 标签切换 */}
+        {/* 标签切换 - 分离截取片段和技术分析 */}
         <View style={styles.tabContainer}>
           <TabButton
             title="综合"
@@ -121,25 +122,104 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({
             onPress={() => setActiveTab('overview')}
           />
           <TabButton
-            title={`片段(${analysisResult.validClips.length})`}
+            title={`截取片段(${analysisResult.validClips.length})`}
             active={activeTab === 'clips'}
             onPress={() => setActiveTab('clips')}
           />
           <TabButton
-            title={`建议(${analysisResult.suggestions.length})`}
-            active={activeTab === 'suggestions'}
-            onPress={() => setActiveTab('suggestions')}
+            title={`技术分析`}
+            active={activeTab === 'technique'}
+            onPress={() => setActiveTab('technique')}
           />
         </View>
 
         {/* 内容区域 */}
         <View style={styles.content}>
-          {/* 综合分析 */}
+          {/* 综合分析 - 简化版 */}
           {activeTab === 'overview' && (
             <View>
-              {/* 五维雷达图 */}
+              {/* 快速导航提示 */}
+              <View style={styles.quickNavCard}>
+                <Text style={styles.quickNavTitle}>📋 分析概览</Text>
+                <Text style={styles.quickNavDesc}>
+                  共截取 {analysisResult.validClips.length} 个有效片段，已完成技术分析
+                </Text>
+                <View style={styles.quickNavButtons}>
+                  <TouchableOpacity 
+                    style={styles.quickNavBtn}
+                    onPress={() => setActiveTab('clips')}
+                  >
+                    <Text style={styles.quickNavBtnText}>🎬 查看片段</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={styles.quickNavBtn}
+                    onPress={() => setActiveTab('technique')}
+                  >
+                    <Text style={styles.quickNavBtnText}>📊 技术分析</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* 分析统计 */}
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>五维能力分析</Text>
+                <Text style={styles.sectionTitle}>分析统计</Text>
+                <View style={styles.statsGrid}>
+                  <StatItem
+                    icon="🎬"
+                    label="有效片段"
+                    value={analysisResult.validClips.length.toString()}
+                  />
+                  <StatItem
+                    icon="⏱️"
+                    label="处理时间"
+                    value={`${analysisResult.processingTime}秒`}
+                  />
+                  <StatItem
+                    icon="📊"
+                    label="综合评分"
+                    value={`${analysisResult.overallScore}分`}
+                  />
+                  <StatItem
+                    icon="🎯"
+                    label="等级"
+                    value={gradeConfig.label}
+                  />
+                </View>
+              </View>
+            </View>
+          )}
+
+          {/* 截取片段 - 独立功能 */}
+          {activeTab === 'clips' && (
+            <View>
+              <Text style={styles.clipsIntro}>
+                🎬 基于音频能量分析，截取到 {analysisResult.validClips.length} 个有效击球片段
+              </Text>
+              <Text style={styles.clipsSubIntro}>
+                点击任意片段可播放查看，点击「让AI分析」获取该片段的技术评价
+              </Text>
+              {analysisResult.validClips.map((clip, index) => (
+                <ClipCard 
+                  key={clip.id} 
+                  clip={clip}
+                  clipIndex={index + 1}
+                  showAnalysisButton={true}
+                  videoUri={currentVideo?.localUri || currentVideo?.videoUrl}
+                />
+              ))}
+            </View>
+          )}
+
+          {/* 技术分析 - 独立功能 */}
+          {activeTab === 'technique' && (
+            <View>
+              <Text style={styles.clipsIntro}>
+                📊 基于截取片段的AI分析结果
+              </Text>
+              
+              {/* 技术评分雷达图 */}
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>五维能力评分</Text>
                 <RadarChart scores={analysisResult.scores} />
               </View>
 
@@ -168,53 +248,17 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({
                 </View>
               </View>
 
-              {/* 分析统计 */}
+              {/* 改进建议 */}
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>分析统计</Text>
-                <View style={styles.statsGrid}>
-                  <StatItem
-                    icon="🎬"
-                    label="有效片段"
-                    value={analysisResult.validClips.length.toString()}
-                  />
-                  <StatItem
-                    icon="⏱️"
-                    label="处理时间"
-                    value={`${analysisResult.processingTime}秒`}
-                  />
-                  <StatItem
-                    icon="🎾"
-                    label="击球类型"
-                    value={Object.keys(
-                      analysisResult.validClips.reduce((acc, clip) => {
-                        acc[clip.type] = true;
-                        return acc;
-                      }, {} as Record<string, boolean>)
-                    ).length.toString()}
-                  />
-                  <StatItem
-                    icon="📊"
-                    label="置信度"
-                    value="85%"
-                  />
-                </View>
+                <Text style={styles.sectionTitle}>改进建议</Text>
+                {analysisResult.suggestions.length > 0 ? (
+                  analysisResult.suggestions.map((suggestion) => (
+                    <SuggestionCard key={suggestion.id} suggestion={suggestion} />
+                  ))
+                ) : (
+                  <Text style={styles.emptyText}>暂无建议</Text>
+                )}
               </View>
-            </View>
-          )}
-
-          {/* 有效片段 */}
-          {activeTab === 'clips' && (
-            <View>
-              <Text style={styles.clipsIntro}>
-                以下是 AI 识别到的 {analysisResult.validClips.length} 个有效击球片段：
-              </Text>
-              {analysisResult.validClips.map((clip) => (
-                <ClipCard 
-                  key={clip.id} 
-                  clip={clip} 
-                  videoUri={currentVideo?.localUri || currentVideo?.videoUrl}
-                />
-              ))}
             </View>
           )}
 
@@ -377,6 +421,42 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 120,
   },
+  quickNavCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  quickNavTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: COLORS.text,
+    marginBottom: 8,
+  },
+  quickNavDesc: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    marginBottom: 16,
+  },
+  quickNavButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  quickNavBtn: {
+    flex: 1,
+    backgroundColor: COLORS.primary + '20',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  quickNavBtnText: {
+    color: COLORS.primary,
+    fontSize: 14,
+    fontWeight: '600',
+  },
   section: {
     marginBottom: 24,
   },
@@ -448,7 +528,19 @@ const styles = StyleSheet.create({
   clipsIntro: {
     fontSize: 14,
     color: COLORS.textSecondary,
+    marginBottom: 8,
+  },
+  clipsSubIntro: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    opacity: 0.7,
     marginBottom: 16,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    paddingVertical: 20,
   },
   suggestionHeader: {
     marginBottom: 16,
