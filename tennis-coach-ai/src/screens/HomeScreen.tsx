@@ -15,7 +15,7 @@ import { RootStackParamList } from '../types';
 import { useAppStore } from '../store';
 import { formatDateTime } from '../utils';
 
-const APP_VERSION = 'v2.1.0';
+const APP_VERSION = 'v2.2.0';
 const BUILD_DATE = new Date().toISOString().split('T')[0];
 
 type HomeScreenProps = {
