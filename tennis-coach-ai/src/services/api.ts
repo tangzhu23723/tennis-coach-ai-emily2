@@ -325,13 +325,6 @@ export const getAnalysisResult = async (
     
     // 默认检测到的击球类型
     const detectedShotTypes = ['serve'];
-    const scores = {
-      forehand: 0,
-      backhand: 0,
-      serve: 0,
-      footwork: 70,
-      stability: 73,
-    };
     
     if (ranges.length > 0) {
       // 基于音频分析结果生成片段

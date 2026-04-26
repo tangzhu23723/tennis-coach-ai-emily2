@@ -15,6 +15,9 @@ import { RootStackParamList } from '../types';
 import { useAppStore } from '../store';
 import { formatDateTime } from '../utils';
 
+const APP_VERSION = 'v2.1.0';
+const BUILD_DATE = new Date().toISOString().split('T')[0];
+
 type HomeScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Home'>;
 };
@@ -68,6 +71,13 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             <FeatureCard icon="📊" title="多维分析" description="正手/反手/发球/步法" />
             <FeatureCard icon="📄" title="报告生成" description="专业分析报告下载" />
           </View>
+        </View>
+
+        {/* 版本信息 */}
+        <View style={styles.versionSection}>
+          <Text style={styles.versionText}>{APP_VERSION}</Text>
+          <Text style={styles.buildDate}>Build: {BUILD_DATE}</Text>
+          <Text style={styles.updateHint}>有新版本？尝试 Ctrl+Shift+R 强制刷新</Text>
         </View>
 
         {/* 最近分析 */}
@@ -218,6 +228,30 @@ const styles = StyleSheet.create({
   featureDescription: {
     fontSize: 13,
     color: COLORS.textSecondary,
+  },
+  versionSection: {
+    alignItems: 'center',
+    marginTop: 20,
+    paddingVertical: 16,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+  },
+  versionText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.textSecondary,
+    marginBottom: 4,
+  },
+  buildDate: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    opacity: 0.7,
+    marginBottom: 8,
+  },
+  updateHint: {
+    fontSize: 11,
+    color: COLORS.primary,
+    opacity: 0.8,
   },
   recentSection: {
     marginBottom: 32,
