@@ -1,5 +1,5 @@
 [build]
-  command = "cd tennis-coach-ai && npm install && npm run web:build"
+  command = "cd tennis-coach-ai && npm install && npx expo export --platform web"
   publish = "tennis-coach-ai/dist"
 
 [build.environment]
