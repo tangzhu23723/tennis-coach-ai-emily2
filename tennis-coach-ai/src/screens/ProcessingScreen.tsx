@@ -62,8 +62,9 @@ export const ProcessingScreen: React.FC<ProcessingScreenProps> = ({
         }
       }
 
-      // 获取分析结果 - 传入视频时长和检测到的击球类型
-      const result = await getAnalysisResult(videoId, videoDuration, detectedShotTypes);
+      // 获取分析结果 - 传入视频时长
+      // 注意：未来可以在这里先进行音频分析，然后把有效区间传入
+      const result = await getAnalysisResult(videoId, videoDuration);
 
       if (result.success && result.data) {
         setAnalysisResult(result.data);
