@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>TennisCoach AI - 网球视频智能分析</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: linear-gradient(135deg, #0a1f15 0%, #0d2818 50%, #0a1a12 100%); color: #fff; min-height: 100vh; }
+    
+    /* Screen base */
+    .screen { display: none; min-height: 100vh; padding-top: 80px; }
+    .screen.active { display: block !important; }
+    
+    /* Back button */
+    .back-btn { position: fixed; top: 20px; left: 20px; width: 44px; height: 44px; background: rgba(255,255,255,0.1); border: none; border-radius: 12px; color: #fff; font-size: 20px; cursor: pointer; z-index: 1000; backdrop-filter: blur(10px); }
+    
+    /* Screen header */
+    .screen-header { text-align: center; padding: 20px 24px 40px; }
+    .screen-title { font-size: 28px; font-weight: 700; margin-bottom: 8px; }
+    .screen-subtitle { color: #9ca3af; font-size: 15px; }
+    
+    /* Home screen */
+    .home-content { display: flex; flex-direction: column; align-items: center; padding: 0 24px; }
+    .hero-section { text-align: center; margin-bottom: 40px; }
+    .hero-icon { font-size: 80px; margin-bottom: 20px; }
+    .hero-title { font-size: 32px; font-weight: 700; margin-bottom: 12px; background: linear-gradient(135deg, #22c55e, #4ade80); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .hero-desc { color: #9ca3af; font-size: 15px; line-height: 1.6; max-width: 300px; }
+    
+    .feature-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; width: 100%; max-width: 400px; margin-bottom: 40px; }
+    .feature-item { background: rgba(255,255,255,0.03); border-radius: 16px; padding: 20px; text-align: center; border: 1px solid rgba(255,255,255,0.05); }
+    .feature-icon { font-size: 32px; margin-bottom: 8px; }
+    .feature-text { font-size: 13px; color: #9ca3af; }
+    
+    /* Buttons */
+    .btn { padding: 16px 32px; border-radius: 16px; border: none; font-size: 17px; font-weight: 600; cursor: pointer; transition: all 0.3s; width: 100%; max-width: 340px; }
+    .btn-primary { background: linear-gradient(135deg, #22c55e, #16a34a); color: #fff; box-shadow: 0 8px 32px rgba(34,197,94,0.35); }
+    .btn-primary:active { transform: scale(0.98); }
+    .btn-secondary { background: rgba(255,255,255,0.08); color: #fff; }
+    .btn-group { display: flex; flex-direction: column; gap: 12px; align-items: center; }
+    
+    /* Upload screen */
+    .upload-screen { padding-top: 60px; }
+    .upload-zone { margin: 0 24px 24px; padding: 60px 32px; background: rgba(255,255,255,0.02); border: 2px dashed rgba(255,255,255,0.15); border-radius: 24px; text-align: center; cursor: pointer; transition: all 0.3s; }
+    .upload-zone:hover { border-color: #22c55e; background: rgba(34,197,94,0.05); }
+    .upload-zone h3 { font-size: 20px; margin-bottom: 8px; }
+    .upload-zone p { color: #9ca3af; font-size: 14px; }
+    
+    /* Video preview */
+    #videoPreview { display: none; margin: 0 24px 24px; }
+    #videoPreview.active { display: block !important; }
+    .video-player { width: 100%; border-radius: 16px; background: #000; margin-bottom: 16px; }
+    .video-meta { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; padding: 12px; background: rgba(255,255,255,0.05); border-radius: 12px; }
+    .video-meta-icon { font-size: 32px; }
+    .video-meta-info h4 { font-size: 15px; margin-bottom: 4px; }
+    .video-meta-info p { color: #9ca3af; font-size: 13px; }
+    
+    /* Progress */
+    #uploadProgress { display: none; margin: 0 24px; }
+    #uploadProgress.active { display: block !important; }
+    .progress-card { background: rgba(255,255,255,0.05); border-radius: 16px; padding: 20px; }
+    .progress-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+    .progress-icon { font-size: 32px; }
+    .progress-info h4 { margin-bottom: 4px; }
+    .progress-info p { color: #9ca3af; font-size: 13px; }
+    .progress-bar { height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden; margin-bottom: 8px; }
+    .progress-fill { height: 100%; background: linear-gradient(90deg, #22c55e, #4ade80); border-radius: 4px; width: 0%; transition: width 0.3s; }
+    .progress-footer { display: flex; justify-content: space-between; font-size: 13px; color: #9ca3af; }
+    
+    /* Processing screen */
+    .processing-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 24px; }
+    .tennis-ball { width: 100px; height: 100px; background: linear-gradient(135deg, #d4e157, #afb42b); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 50px; margin-bottom: 40px; animation: spin 2s linear infinite; }
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    .processing-title { font-size: 24px; font-weight: 600; margin-bottom: 8px; }
+    .processing-status { color: #9ca3af; margin-bottom: 40px; }
+    
+    .steps { width: 100%; max-width: 360px; }
+    .step { display: flex; align-items: center; gap: 16px; padding: 16px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+    .step:last-child { border-bottom: none; }
+    .step-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 20px; background: rgba(255,255,255,0.1); }
+    .step-icon.active { background: rgba(34,197,94,0.3); animation: pulse 1.5s infinite; }
+    .step-icon.done { background: rgba(34,197,94,0.3); }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    .step-text h4 { font-size: 15px; margin-bottom: 2px; }
+    .step-text p { font-size: 13px; color: #9ca3af; }
+    
+    /* Result screen */
+    .result-screen { padding-bottom: 100px; }
+    .score-hero { text-align: center; padding: 20px; background: rgba(34,197,94,0.08); margin: 0 24px 24px; border-radius: 24px; }
+    .score-circle { width: 140px; height: 140px; border-radius: 50%; background: conic-gradient(#22c55e var(--score), rgba(255,255,255,0.1) 0); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; }
+    .score-inner { width: 120px; height: 120px; border-radius: 50%; background: #0a1f15; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+    .score-value { font-size: 42px; font-weight: 700; color: #22c55e; }
+    .score-label { font-size: 13px; color: #9ca3af; }
+    .score-title { font-size: 20px; font-weight: 600; }
+    .score-subtitle { color: #9ca3af; font-size: 14px; margin-top: 4px; }
+    
+    .section { padding: 0 24px; margin-bottom: 24px; }
+    .section-title { font-size: 18px; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+    
+    /* Ability bars */
+    .ability-item { margin-bottom: 16px; }
+    .ability-header { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px; }
+    .ability-bar { height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden; }
+    .ability-fill { height: 100%; border-radius: 4px; transition: width 1s; }
+    
+    /* Clips */
+    .clips-grid { display: grid; gap: 16px; }
+    .clip-card { background: rgba(255,255,255,0.03); border-radius: 16px; overflow: hidden; border: 1px solid rgba(255,255,255,0.08); }
+    .clip-header { padding: 16px; display: flex; justify-content: space-between; align-items: center; }
+    .clip-type { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 600; }
+    .clip-score-badge { padding: 4px 10px; background: rgba(34,197,94,0.2); border-radius: 6px; color: #22c55e; font-size: 13px; font-weight: 600; }
+    .clip-video { width: 100%; height: 160px; background: #000; object-fit: cover; }
+    .clip-body { padding: 16px; }
+    .clip-time { font-size: 13px; color: #9ca3af; margin-bottom: 8px; }
+    .clip-reason { font-size: 14px; color: #e5e5e5; line-height: 1.6; }
+    .clip-actions { display: flex; gap: 8px; margin-top: 12px; }
+    .clip-btn { flex: 1; padding: 10px; border-radius: 8px; border: none; font-size: 13px; font-weight: 500; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; }
+    .clip-btn-play { background: rgba(34,197,94,0.2); color: #22c55e; }
+    .clip-btn-dl { background: rgba(59,130,246,0.2); color: #3b82f6; }
+    
+    /* Suggestions */
+    .suggestion-card { background: rgba(255,255,255,0.03); border-radius: 16px; padding: 16px; margin-bottom: 12px; border: 1px solid rgba(255,255,255,0.05); }
+    .suggestion-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .suggestion-title { font-size: 15px; font-weight: 600; }
+    .priority-badge { padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+    .priority-high { background: rgba(239,68,68,0.2); color: #ef4444; }
+    .priority-medium { background: rgba(234,179,8,0.2); color: #eab308; }
+    .priority-low { background: rgba(59,130,246,0.2); color: #3b82f6; }
+    .suggestion-desc { font-size: 14px; color: #9ca3af; line-height: 1.5; margin-bottom: 8px; }
+    .suggestion-method { font-size: 13px; color: #22c55e; background: rgba(34,197,94,0.1); padding: 8px 12px; border-radius: 8px; }
+    
+    /* References */
+    .ref-list { list-style: none; }
+    .ref-item { padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 13px; color: #9ca3af; display: flex; gap: 8px; }
+    .ref-item:last-child { border-bottom: none; }
+    
+    /* History screen */
+    .history-screen { padding-bottom: 100px; }
+    .history-list { padding: 0 24px; }
+    .history-card { background: rgba(255,255,255,0.03); border-radius: 16px; padding: 16px; margin-bottom: 12px; display: flex; align-items: center; gap: 16px; border: 1px solid rgba(255,255,255,0.05); cursor: pointer; transition: all 0.2s; }
+    .history-card:hover { background: rgba(255,255,255,0.06); }
+    .history-icon { font-size: 40px; }
+    .history-info { flex: 1; }
+    .history-info h4 { font-size: 15px; margin-bottom: 4px; }
+    .history-info p { font-size: 13px; color: #9ca3af; }
+    .history-score { font-size: 24px; font-weight: 700; color: #22c55e; }
+    
+    /* Bottom actions */
+    .bottom-actions { position: fixed; bottom: 0; left: 0; right: 0; padding: 16px 24px; background: linear-gradient(to top, #0a1a12 60%, transparent); display: flex; gap: 12px; }
+    .bottom-btn { flex: 1; padding: 14px; border-radius: 14px; border: none; font-size: 15px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; }
+    .bottom-btn-primary { background: linear-gradient(135deg, #22c55e, #16a34a); color: #fff; }
+    .bottom-btn-secondary { background: rgba(255,255,255,0.1); color: #fff; }
+    
+    /* Modal */
+    .modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.95); z-index: 2000; display: none; flex-direction: column; }
+    .modal.active { display: flex; }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; background: rgba(255,255,255,0.05); }
+    .modal-title { font-size: 16px; font-weight: 600; }
+    .modal-close { background: none; border: none; color: #fff; font-size: 24px; cursor: pointer; padding: 4px; }
+    .modal-body { flex: 1; display: flex; align-items: center; justify-content: center; padding: 20px; }
+    .modal-body video { width: 100%; max-height: 70vh; border-radius: 12px; }
+    
+    /* Toast */
+    .toast { position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%) translateY(100px); background: rgba(0,0,0,0.9); color: #fff; padding: 12px 24px; border-radius: 12px; font-size: 14px; z-index: 3000; opacity: 0; transition: all 0.3s; }
+    .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+  </style>
+</head>
+<body>
+
+<!-- HOME SCREEN -->
+<div id="home" class="screen active">
+  <div class="home-content">
+    <div class="hero-section">
+      <div class="hero-icon">🎾</div>
+      <h1 class="hero-title">TennisCoach AI</h1>
+      <p class="hero-desc">智能分析你的网球动作，<br>找到提升空间</p>
+    </div>
+    
+    <div class="feature-grid">
+      <div class="feature-item"><div class="feature-icon">🎯</div><div class="feature-text">击球检测</div></div>
+      <div class="feature-item"><div class="feature-icon">📊</div><div class="feature-text">五维评分</div></div>
+      <div class="feature-item"><div class="feature-icon">💡</div><div class="feature-text">改进建议</div></div>
+      <div class="feature-item"><div class="feature-icon">📥</div><div class="feature-text">报告导出</div></div>
+    </div>
+    
+    <div class="btn-group">
+      <button class="btn btn-primary" id="btnStart">🚀 开始分析</button>
+      <button class="btn btn-secondary" id="btnHistory">📋 历史记录</button>
+    </div>
+  </div>
+</div>
+
+<!-- UPLOAD SCREEN -->
+<div id="upload" class="screen upload-screen">
+  <button class="back-btn" id="btnBackHome">←</button>
+  <div class="screen-header">
+    <h2 class="screen-title">上传视频</h2>
+    <p class="screen-subtitle" id="uploadHint">选择视频文件开始分析</p>
+  </div>
+  
+  <div class="upload-zone" id="uploadZone">
+    <div style="font-size:64px;margin-bottom:20px;">🎬</div>
+    <h3>点击选择视频文件</h3>
+    <p>支持 MP4, MOV, AVI 格式</p>
+    <input type="file" id="fileInput" accept="video/*" style="display:none">
+  </div>
+  
+  <div id="videoPreview">
+    <video id="videoPlayer" class="video-player" controls></video>
+    <div class="video-meta">
+      <div class="video-meta-icon">🎾</div>
+      <div class="video-meta-info">
+        <h4 id="videoName">-</h4>
+        <p id="videoSize">-</p>
+      </div>
+    </div>
+    <button class="btn btn-primary" id="btnAnalyze">🔍 开始 AI 分析</button>
+  </div>
+  
+  <div id="uploadProgress">
+    <div class="progress-card">
+      <div class="progress-header">
+        <div class="progress-icon">🤖</div>
+        <div class="progress-info">
+          <h4 id="progressTitle">正在处理...</h4>
+          <p id="progressDetail">准备中</p>
+        </div>
+      </div>
+      <div class="progress-bar">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+      <div class="progress-footer">
+        <span id="progressLabel">上传中</span>
+        <span id="progressPercent">0%</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PROCESSING SCREEN -->
+<div id="processing" class="screen processing-screen">
+  <div class="tennis-ball">🎾</div>
+  <h2 class="processing-title">AI 智能分析中</h2>
+  <p class="processing-status" id="processStatus">正在处理您的视频...</p>
+  
+  <div class="steps">
+    <div class="step">
+      <div class="step-icon" id="step0">🎯</div>
+      <div class="step-text">
+        <h4>加载视频</h4>
+        <p>读取并解码视频文件</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-icon" id="step1">🔊</div>
+      <div class="step-text">
+        <h4>音频分析</h4>
+        <p>检测击球声音，定位有效片段</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-icon" id="step2">✂️</div>
+      <div class="step-text">
+        <h4>切割片段</h4>
+        <p>提取有效击球片段</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-icon" id="step3">🧍</div>
+      <div class="step-text">
+        <h4>姿态分析</h4>
+        <p>分析击球动作和姿态</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-icon" id="step4">📝</div>
+      <div class="step-text">
+        <h4>生成报告</h4>
+        <p>计算评分并生成建议</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- RESULT SCREEN -->
+<div id="result" class="screen result-screen">
+  <button class="back-btn" id="btnBackFromResult">←</button>
+  
+  <div class="score-hero">
+    <div class="score-circle" style="--score: 72%;">
+      <div class="score-inner">
+        <span class="score-value">72</span>
+        <span class="score-label">综合得分</span>
+      </div>
+    </div>
+    <h2 class="score-title">中级水平 🎾</h2>
+    <p class="score-subtitle">正手击球稳定性较好，发球需加强</p>
+  </div>
+  
+  <div class="section">
+    <h3 class="section-title">📊 五维能力评估</h3>
+    <div id="abilityBars"></div>
+  </div>
+  
+  <div class="section">
+    <h3 class="section-title">🎬 检测到的击球片段</h3>
+    <div class="clips-grid" id="clipsList"></div>
+  </div>
+  
+  <div class="section">
+    <h3 class="section-title">💡 改进建议</h3>
+    <div id="suggestionsList"></div>
+  </div>
+  
+  <div class="section">
+    <h3 class="section-title">📚 参考标准</h3>
+    <ul class="ref-list">
+      <li class="ref-item"><span>📖</span> ITF 国际网球联合会技术标准</li>
+      <li class="ref-item"><span>📖</span> USPTR 美国职业网球教练认证体系</li>
+      <li class="ref-item"><span>📖</span> tenniswarehouse 技术分析数据库</li>
+      <li class="ref-item"><span>📖</span> 职业球员动作分析（费德勒、纳达尔）</li>
+    </ul>
+  </div>
+  
+  <div style="height: 100px;"></div>
+  <div class="bottom-actions">
+    <button class="bottom-btn bottom-btn-secondary" id="btnBackHome2">🏠 首页</button>
+    <button class="bottom-btn bottom-btn-primary" id="btnDownload">📥 下载报告</button>
+  </div>
+</div>
+
+<!-- HISTORY SCREEN -->
+<div id="history" class="screen history-screen">
+  <button class="back-btn" id="btnBackFromHistory">←</button>
+  <div class="screen-header">
+    <h2 class="screen-title">历史记录</h2>
+    <p class="screen-subtitle">共 3 次分析记录</p>
+  </div>
+  <div class="history-list" id="historyList"></div>
+</div>
+
+<!-- VIDEO PREVIEW MODAL -->
+<div class="modal" id="videoModal">
+  <div class="modal-header">
+    <span class="modal-title" id="modalTitle">视频预览</span>
+    <button class="modal-close" id="modalClose">×</button>
+  </div>
+  <div class="modal-body">
+    <video id="modalVideo" controls></video>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+// Navigation
+function goTo(screenId) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(screenId).classList.add('active');
+  window.scrollTo(0, 0);
+}
+
+// Toast
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// Format file size
+function formatSize(bytes) {
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+}
+
+// State
+let selectedFile = null;
+let videoBlob = null;
+
+// Abilities data
+const abilities = [
+  { name: '正手击球', score: 78, color: '#22c55e', reason: '击球点控制良好，拍面角度稳定', good: '击球点位于身体前方', bad: '随挥动作不够完整' },
+  { name: '反手击球', score: 65, color: '#3b82f6', reason: '双反动作流畅，单反需加强转体', good: '双反转换流畅', bad: '单反击球点偏后' },
+  { name: '发球', score: 58, color: '#f59e0b', reason: '抛球位置不稳定，二发缺乏旋转', good: '一发速度尚可', bad: '二发容易被接发' },
+  { name: '截击', score: 72, color: '#8b5cf6', reason: '网前反应较快，截击角度选择合理', good: '正手截击稳定', bad: '反手截击手腕过软' },
+  { name: '步法移动', score: 70, color: '#ec4899', reason: '分腿垫步及时，交叉步使用正确', good: '防守移动到位', bad: '进攻上网脚步偏慢' }
+];
+
+// Clips data
+const clips = [
+  { type: '正手', icon: '🎾', time: '00:12 - 00:18', score: 78, reason: '击球点控制良好，拍面角度稳定，正手击球力量充足。参考：纳达尔正手击球点分析（tenniswarehouse）' },
+  { type: '反手', icon: '🔄', time: '00:24 - 00:30', score: 65, reason: '双反转换流畅，但单反击球点偏后。参考：费德勒单反击球点标准（ITF）' },
+  { type: '发球', icon: '🏹', time: '00:45 - 00:52', score: 58, reason: '一发抛球偏前，二发缺乏上旋。参考：USPTR 发球技术标准 第3.2条' },
+  { type: '截击', icon: '🪁', time: '01:05 - 01:10', score: 72, reason: '网前反应快，截击角度选择合理。参考：tenniswarehouse 截击教学' },
+  { type: '正手', icon: '🎾', time: '01:22 - 01:28', score: 82, reason: '本场最佳击球！击球点完美，随挥完整。参考：职业球员正手示范（纳达尔）' }
+];
+
+// Suggestions data
+const suggestions = [
+  { title: '加强单反击球点训练', priority: 'high', desc: '单反击球点偏后会导致力量损失和稳定性下降', method: '使用标记锥筒定位击球点，每天练习 20 分钟' },
+  { title: '改善二发旋转', priority: 'high', desc: '二发缺乏上旋容易被对手进攻', method: '练习 continental grip 发球，从 T 点发球开始' },
+  { title: '提高网前进攻意识', priority: 'medium', desc: '进攻上网时脚步偏慢，给对手反应时间', method: '对抗性截击练习，每组 20 个' },
+  { title: '强化侧滑步训练', priority: 'medium', desc: '横向移动时重心偏高，影响稳定性', method: '使用步伐梯练习，每天 15 分钟' },
+  { title: '注意赛后拉伸', priority: 'low', desc: '视频中未观察到充分的热身/拉伸', method: '建议每次训练前后进行 10 分钟拉伸' }
+];
+
+// Render abilities
+function renderAbilities() {
+  const container = document.getElementById('abilityBars');
+  container.innerHTML = abilities.map(a => `
+    <div class="ability-item">
+      <div class="ability-header">
+        <span>${a.name}</span>
+        <span style="color:${a.color}">${a.score}分</span>
+      </div>
+      <div class="ability-bar">
+        <div class="ability-fill" style="width:0%;background:${a.color};" data-width="${a.score}%"></div>
+      </div>
+    </div>
+  `).join('');
+}
+
+// Render clips
+function renderClips() {
+  const container = document.getElementById('clipsList');
+  container.innerHTML = clips.map((c, i) => `
+    <div class="clip-card">
+      <div class="clip-header">
+        <div class="clip-type"><span>${c.icon}</span><span>${c.type}</span></div>
+        <div class="clip-score-badge">${c.score}分</div>
+      </div>
+      <div class="clip-body">
+        <div class="clip-time">⏱ ${c.time}</div>
+        <div class="clip-reason">${c.reason}</div>
+        <div class="clip-actions">
+          <button class="clip-btn clip-btn-play" onclick="playClip(${i})">▶️ 预览</button>
+          <button class="clip-btn clip-btn-dl" onclick="downloadClip(${i})">⬇️ 下载</button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+// Render suggestions
+function renderSuggestions() {
+  const container = document.getElementById('suggestionsList');
+  container.innerHTML = suggestions.map(s => `
+    <div class="suggestion-card">
+      <div class="suggestion-header">
+        <span class="suggestion-title">${s.title}</span>
+        <span class="priority-badge priority-${s.priority}">${s.priority === 'high' ? '高' : s.priority === 'medium' ? '中' : '低'}优先级</span>
+      </div>
+      <div class="suggestion-desc">${s.desc}</div>
+      <div class="suggestion-method">📍 ${s.method}</div>
+    </div>
+  `).join('');
+}
+
+// Render history
+function renderHistory() {
+  const container = document.getElementById('historyList');
+  const items = [
+    { name: 'tennis_training.mp4', date: '2026-04-26 12:20', score: 72 },
+    { name: 'match_recording.mp4', date: '2026-04-25 15:30', score: 68 },
+    { name: 'practice_session.mp4', date: '2026-04-24 09:00', score: 75 }
+  ];
+  container.innerHTML = items.map(h => `
+    <div class="history-card" onclick="goTo('result')">
+      <div class="history-icon">🎾</div>
+      <div class="history-info">
+        <h4>${h.name}</h4>
+        <p>${h.date}</p>
+      </div>
+      <div class="history-score">${h.score}</div>
+    </div>
+  `).join('');
+}
+
+// Play clip
+function playClip(index) {
+  const clip = clips[index];
+  document.getElementById('modalTitle').textContent = `${clip.type} - ${clip.time}`;
+  const modal = document.getElementById('videoModal');
+  const video = document.getElementById('modalVideo');
+  
+  if (videoBlob) {
+    video.src = URL.createObjectURL(videoBlob);
+  }
+  modal.classList.add('active');
+  video.play().catch(() => {});
+}
+
+// Download clip
+function downloadClip(index) {
+  const clip = clips[index];
+  if (videoBlob) {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(videoBlob);
+    a.download = `tennis_${clip.type}_${index + 1}.mp4`;
+    a.click();
+    showToast('片段下载开始...');
+  } else {
+    showToast('演示模式：请先上传完整视频');
+  }
+}
+
+// Close modal
+document.getElementById('modalClose').onclick = function() {
+  document.getElementById('videoModal').classList.remove('active');
+  document.getElementById('modalVideo').pause();
+};
+
+// File input
+document.getElementById('fileInput').addEventListener('change', function(e) {
+  const file = e.target.files[0];
+  if (file) {
+    selectedFile = file;
+    videoBlob = file;
+    const video = document.getElementById('videoPlayer');
+    video.src = URL.createObjectURL(file);
+    document.getElementById('videoName').textContent = file.name;
+    document.getElementById('videoSize').textContent = formatSize(file.size) + ' · 视频已加载';
+    document.getElementById('uploadZone').style.display = 'none';
+    document.getElementById('videoPreview').style.display = 'block';
+    document.getElementById('uploadHint').textContent = '视频已选择，点击开始分析';
+  }
+});
+
+document.getElementById('uploadZone').onclick = function() {
+  document.getElementById('fileInput').click();
+};
+
+// Analyze button
+document.getElementById('btnAnalyze').onclick = function() {
+  if (!selectedFile) {
+    showToast('请先选择视频文件');
+    return;
+  }
+  goTo('processing');
+  runAnalysis();
+};
+
+// Analysis flow
+async function runAnalysis() {
+  const steps = ['step0', 'step1', 'step2', 'step3', 'step4'];
+  const statuses = ['正在加载视频...', '正在分析音频...', '正在切割片段...', '正在分析姿态...', '正在生成报告...'];
+  
+  for (let i = 0; i < steps.length; i++) {
+    document.getElementById(steps[i]).className = 'step-icon active';
+    document.getElementById('processStatus').textContent = statuses[i];
+    await new Promise(r => setTimeout(r, 800 + Math.random() * 600));
+    document.getElementById(steps[i]).className = 'step-icon done';
+  }
+  
+  // Show result
+  renderAbilities();
+  renderClips();
+  renderSuggestions();
+  goTo('result');
+  
+  // Animate bars
+  setTimeout(() => {
+    document.querySelectorAll('.ability-fill').forEach(bar => {
+      bar.style.width = bar.dataset.width;
+    });
+  }, 100);
+}
+
+// Button events
+document.getElementById('btnStart').onclick = () => goTo('upload');
+document.getElementById('btnHistory').onclick = () => { renderHistory(); goTo('history'); };
+document.getElementById('btnBackHome').onclick = () => goTo('home');
+document.getElementById('btnBackHome2').onclick = () => goTo('home');
+document.getElementById('btnBackFromResult').onclick = () => goTo('home');
+document.getElementById('btnBackFromHistory').onclick = () => goTo('home');
+
+document.getElementById('btnDownload').onclick = function() {
+  showToast('报告生成中，请稍候...');
+  setTimeout(() => showToast('报告下载功能即将上线'), 1500);
+};
+
+// Init
+console.log('🎾 TennisCoach AI 已就绪');
+</script>
+</body>
+</html>

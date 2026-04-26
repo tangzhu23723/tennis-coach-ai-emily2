@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>TennisCoach AI - 网球视频分析</title>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0a0f0d;
+      color: #fff;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+    #root { min-height: 100vh; }
+
+    /* Gradient Background */
+    .gradient-bg {
+      background: linear-gradient(135deg, #0a1f15 0%, #0d2818 50%, #0a1a12 100%);
+      position: relative;
+    }
+    .gradient-bg::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      right: -50%;
+      width: 100%;
+      height: 100%;
+      background: radial-gradient(circle, rgba(34,197,94,0.1) 0%, transparent 70%);
+    }
+
+    /* Home Screen */
+    .home-screen {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 24px;
+      text-align: center;
+      position: relative;
+    }
+    .logo-container {
+      width: 120px;
+      height: 120px;
+      background: linear-gradient(135deg, #22c55e, #16a34a);
+      border-radius: 30px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 32px;
+      box-shadow: 0 20px 60px rgba(34,197,94,0.3);
+      animation: float 3s ease-in-out infinite;
+    }
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-10px); }
+    }
+    .logo-text { font-size: 48px; }
+    .brand-name {
+      font-size: 32px;
+      font-weight: 700;
+      background: linear-gradient(135deg, #22c55e, #4ade80);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 12px;
+    }
+    .brand-tagline {
+      color: #9ca3af;
+      font-size: 16px;
+      margin-bottom: 48px;
+    }
+    .btn-primary {
+      width: 100%;
+      max-width: 320px;
+      padding: 18px 32px;
+      background: linear-gradient(135deg, #22c55e, #16a34a);
+      border: none;
+      border-radius: 16px;
+      color: #fff;
+      font-size: 18px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+      box-shadow: 0 10px 40px rgba(34,197,94,0.3);
+    }
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 15px 50px rgba(34,197,94,0.4);
+    }
+    .btn-secondary {
+      width: 100%;
+      max-width: 320px;
+      padding: 16px 32px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 16px;
+      color: #fff;
+      font-size: 16px;
+      font-weight: 500;
+      cursor: pointer;
+      margin-top: 16px;
+      transition: all 0.3s;
+    }
+    .btn-secondary:hover {
+      background: rgba(255,255,255,0.1);
+      border-color: rgba(34,197,94,0.5);
+    }
+
+    /* Video Picker Screen */
+    .screen-header {
+      padding: 60px 24px 24px;
+      text-align: center;
+    }
+    .back-btn {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      width: 44px;
+      height: 44px;
+      background: rgba(255,255,255,0.1);
+      border: none;
+      border-radius: 12px;
+      color: #fff;
+      font-size: 20px;
+      cursor: pointer;
+    }
+    .screen-title {
+      font-size: 24px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    .screen-subtitle {
+      color: #9ca3af;
+      font-size: 14px;
+    }
+    .picker-options {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 24px;
+      gap: 20px;
+    }
+    .picker-card {
+      width: 100%;
+      max-width: 400px;
+      padding: 32px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 20px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    .picker-card:hover {
+      background: rgba(255,255,255,0.06);
+      border-color: rgba(34,197,94,0.3);
+      transform: translateY(-2px);
+    }
+    .picker-icon {
+      width: 64px;
+      height: 64px;
+      background: linear-gradient(135deg, rgba(34,197,94,0.2), rgba(34,197,94,0.1));
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+    }
+    .picker-text h3 {
+      font-size: 18px;
+      margin-bottom: 4px;
+    }
+    .picker-text p {
+      color: #9ca3af;
+      font-size: 14px;
+    }
+
+    /* Upload Screen */
+    .upload-zone {
+      margin: 0 24px;
+      padding: 60px 32px;
+      background: rgba(255,255,255,0.02);
+      border: 2px dashed rgba(255,255,255,0.15);
+      border-radius: 24px;
+      text-align: center;
+      transition: all 0.3s;
+    }
+    .upload-zone.dragover {
+      border-color: #22c55e;
+      background: rgba(34,197,94,0.05);
+    }
+    .upload-icon {
+      font-size: 64px;
+      margin-bottom: 20px;
+    }
+    .upload-zone h3 {
+      font-size: 20px;
+      margin-bottom: 8px;
+    }
+    .upload-zone p {
+      color: #9ca3af;
+      font-size: 14px;
+    }
+    .video-preview {
+      margin: 24px;
+      padding: 16px;
+      background: rgba(255,255,255,0.05);
+      border-radius: 16px;
+    }
+    .video-info {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    .video-thumb {
+      width: 80px;
+      height: 80px;
+      background: linear-gradient(135deg, #22c55e, #16a34a);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 32px;
+    }
+    .video-details h4 {
+      font-size: 16px;
+      margin-bottom: 4px;
+    }
+    .video-details p {
+      color: #9ca3af;
+      font-size: 14px;
+    }
+    .upload-progress {
+      margin: 24px;
+    }
+    .progress-bar {
+      height: 8px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 4px;
+      overflow: hidden;
+      margin-bottom: 12px;
+    }
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #22c55e, #4ade80);
+      border-radius: 4px;
+      transition: width 0.3s;
+    }
+    .progress-text {
+      display: flex;
+      justify-content: space-between;
+      font-size: 14px;
+      color: #9ca3af;
+    }
+
+    /* Processing Screen */
+    .processing-screen {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .tennis-animation {
+      width: 120px;
+      height: 120px;
+      margin-bottom: 40px;
+      animation: spin 4s linear infinite;
+    }
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    .processing-title {
+      font-size: 24px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    .processing-status {
+      color: #9ca3af;
+      margin-bottom: 40px;
+    }
+    .analyze-steps {
+      width: 100%;
+      max-width: 320px;
+    }
+    .step-item {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 16px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .step-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+    }
+    .step-icon.pending { background: rgba(255,255,255,0.1); }
+    .step-icon.active { background: rgba(34,197,94,0.2); animation: pulse 1.5s infinite; }
+    .step-icon.done { background: rgba(34,197,94,0.3); }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    .step-text h4 { font-size: 16px; margin-bottom: 2px; }
+    .step-text p { font-size: 13px; color: #9ca3af; }
+
+    /* Result Screen */
+    .result-header {
+      padding: 60px 24px 24px;
+      text-align: center;
+      background: linear-gradient(180deg, rgba(34,197,94,0.1) 0%, transparent 100%);
+    }
+    .result-score {
+      font-size: 72px;
+      font-weight: 700;
+      background: linear-gradient(135deg, #22c55e, #4ade80);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .result-label {
+      color: #9ca3af;
+      font-size: 14px;
+      margin-top: 4px;
+    }
+    .result-section {
+      padding: 24px;
+    }
+    .section-title {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .radar-chart {
+      background: rgba(255,255,255,0.03);
+      border-radius: 20px;
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+    .radar-labels {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 8px;
+      margin-top: 16px;
+    }
+    .radar-label {
+      text-align: center;
+      font-size: 12px;
+      color: #9ca3af;
+    }
+    .radar-label span {
+      display: block;
+      font-size: 14px;
+      color: #22c55e;
+      font-weight: 600;
+    }
+    .clips-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .clip-card {
+      padding: 16px;
+      background: rgba(255,255,255,0.03);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .clip-thumb {
+      width: 80px;
+      height: 60px;
+      background: linear-gradient(135deg, #1a1a2e, #16213e);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+    }
+    .clip-info h4 { font-size: 15px; margin-bottom: 4px; }
+    .clip-info p { font-size: 13px; color: #9ca3af; }
+    .clip-score {
+      margin-left: auto;
+      padding: 8px 16px;
+      background: rgba(34,197,94,0.2);
+      border-radius: 8px;
+      font-weight: 600;
+      color: #22c55e;
+    }
+    .suggestions {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .suggestion-card {
+      padding: 16px;
+      background: rgba(255,255,255,0.03);
+      border-radius: 12px;
+      border-left: 3px solid #22c55e;
+    }
+    .suggestion-card h4 {
+      font-size: 15px;
+      margin-bottom: 6px;
+      color: #22c55e;
+    }
+    .suggestion-card p {
+      font-size: 14px;
+      color: #9ca3af;
+      line-height: 1.5;
+    }
+
+    /* Bottom Nav */
+    .bottom-nav {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: 16px 24px 32px;
+      background: linear-gradient(180deg, transparent, #0a0f0d 30%);
+      display: flex;
+      gap: 12px;
+    }
+    .nav-btn {
+      flex: 1;
+      padding: 14px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 12px;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.3s;
+    }
+    .nav-btn.primary {
+      background: linear-gradient(135deg, #22c55e, #16a34a);
+      border: none;
+    }
+    .nav-btn:hover {
+      transform: translateY(-2px);
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    // Router
+    const [currentPage, setCurrentPage] = useState('home');
+
+    // Navigation
+    const navigate = (page) => setCurrentPage(page);
+
+    // Home Screen
+    const HomeScreen = () => (
+      <div className="home-screen gradient-bg">
+        <div className="logo-container">
+          <span className="logo-text">🎾</span>
+        </div>
+        <h1 className="brand-name">TennisCoach AI</h1>
+        <p className="brand-tagline">智能网球视频分析 | 提升你的球技</p>
+        <button className="btn-primary" onClick={() => navigate('picker')}>
+          🚀 开始分析
+        </button>
+        <button className="btn-secondary" onClick={() => navigate('history')}>
+          📊 历史记录
+        </button>
+      </div>
+    );
+
+    // Video Picker Screen
+    const VideoPickerScreen = () => (
+      <div className="gradient-bg" style={{minHeight: '100vh'}}>
+        <div className="screen-header">
+          <h2 className="screen-title">选择视频</h2>
+          <p className="screen-subtitle">从相册选择或拍摄新视频</p>
+        </div>
+        <div className="picker-options">
+          <div className="picker-card" onClick={() => navigate('upload')}>
+            <div className="picker-icon">📱</div>
+            <div className="picker-text">
+              <h3>从相册选择</h3>
+              <p>选择已录制的网球训练视频</p>
+            </div>
+          </div>
+          <div className="picker-card" onClick={() => navigate('upload')}>
+            <div className="picker-icon">📹</div>
+            <div className="picker-text">
+              <h3>拍摄视频</h3>
+              <p>直接录制您的击球动作</p>
+            </div>
+          </div>
+        </div>
+        <button className="back-btn" style={{position: 'fixed', top: 20, left: 20}} onClick={() => navigate('home')}>
+          ←
+        </button>
+      </div>
+    );
+
+    // Upload Screen
+    const UploadScreen = () => {
+      const [uploading, setUploading] = useState(false);
+      const [progress, setProgress] = useState(0);
+      const [uploaded, setUploaded] = useState(false);
+
+      const handleUpload = () => {
+        setUploading(true);
+        const interval = setInterval(() => {
+          setProgress(p => {
+            if (p >= 100) {
+              clearInterval(interval);
+              setUploaded(true);
+              setTimeout(() => navigate('processing'), 500);
+              return 100;
+            }
+            return p + Math.random() * 15;
+          });
+        }, 300);
+      };
+
+      return (
+        <div className="gradient-bg" style={{minHeight: '100vh', paddingBottom: 100}}>
+          <div className="screen-header">
+            <h2 className="screen-title">上传视频</h2>
+            <p className="screen-subtitle">支持任意大小的视频文件</p>
+          </div>
+
+          {!uploading ? (
+            <>
+              <div className="upload-zone">
+                <div className="upload-icon">🎬</div>
+                <h3>点击或拖拽上传视频</h3>
+                <p>支持 MP4, MOV, AVI 格式</p>
+                <input type="file" accept="video/*" style={{display: 'none'}} />
+              </div>
+              <div style={{padding: '0 24px'}}>
+                <button className="btn-primary" onClick={handleUpload}>
+                  模拟上传视频
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="upload-progress">
+              <div className="video-preview">
+                <div className="video-info">
+                  <div className="video-thumb">🎾</div>
+                  <div className="video-details">
+                    <h4>tennis_training.mp4</h4>
+                    <p>125.6 MB · 1080p · 02:34</p>
+                  </div>
+                </div>
+              </div>
+              <div className="progress-bar">
+                <div className="progress-fill" style={{width: `${Math.min(progress, 100)}%`}}></div>
+              </div>
+              <div className="progress-text">
+                <span>正在上传...</span>
+                <span>{Math.round(Math.min(progress, 100))}%</span>
+              </div>
+            </div>
+          )}
+
+          <button className="back-btn" style={{position: 'fixed', top: 20, left: 20}} onClick={() => navigate('picker')}>
+            ←
+          </button>
+        </div>
+      );
+    };
+
+    // Processing Screen
+    const ProcessingScreen = () => {
+      const [step, setStep] = useState(0);
+      const steps = [
+        { icon: '🎯', title: '视频解码', desc: '提取视频帧和音频数据' },
+        { icon: '🔊', title: '音频检测', desc: '识别球拍击打声音' },
+        { icon: '👁️', title: '视觉分析', desc: '检测击球动作和姿态' },
+        { icon: '🏷️', title: '动作分类', desc: '正手/反手/发球/截击' },
+        { icon: '📊', title: '评分生成', desc: '计算综合能力评分' },
+      ];
+
+      useEffect(() => {
+        const timer = setInterval(() => {
+          setStep(s => {
+            if (s >= steps.length - 1) {
+              clearInterval(timer);
+              setTimeout(() => navigate('result'), 800);
+              return s;
+            }
+            return s + 1;
+          });
+        }, 1200);
+        return () => clearInterval(timer);
+      }, []);
+
+      return (
+        <div className="processing-screen gradient-bg">
+          <div className="tennis-animation">🎾</div>
+          <h2 className="processing-title">AI 智能分析中</h2>
+          <p className="processing-status">正在分析您的网球技术...</p>
+
+          <div className="analyze-steps">
+            {steps.map((s, i) => (
+              <div key={i} className="step-item">
+                <div className={`step-icon ${
+                  i < step ? 'done' : i === step ? 'active' : 'pending'
+                }`}>
+                  {i < step ? '✓' : s.icon}
+                </div>
+                <div className="step-text">
+                  <h4>{s.title}</h4>
+                  <p>{s.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    };
+
+    // Result Screen
+    const ResultScreen = () => {
+      const abilities = [
+        { name: '正手', score: 78 },
+        { name: '反手', score: 65 },
+        { name: '发球', score: 82 },
+        { name: '截击', score: 58 },
+        { name: '步法', score: 71 },
+      ];
+      const clips = [
+        { type: '🎾', name: '正手抽击', time: '00:23 - 00:28', score: 82 },
+        { type: '🎾', name: '反手削球', time: '01:15 - 01:20', score: 65 },
+        { type: '🎾', name: '发球', time: '02:01 - 02:08', score: 88 },
+        { type: '🎾', name: '正手截击', time: '02:34 - 02:38', score: 72 },
+      ];
+      const suggestions = [
+        { title: '🎯 反手稳定性', desc: '建议加强反手击球的拍面控制，保持手腕固定以提高击球准确性。' },
+        { title: '⚡ 截击反应', desc: '网前截击时机稍晚，建议提前预判来球路线，增加练习频次。' },
+        { title: '🦶 步法移动', desc: '侧向移动不够流畅，建议进行专项步法训练，提升移动效率。' },
+      ];
+
+      return (
+        <div className="gradient-bg" style={{minHeight: '100vh', paddingBottom: 120}}>
+          <div className="result-header">
+            <div className="result-score">78</div>
+            <div className="result-label">综合评分 · 良好</div>
+          </div>
+
+          <div className="result-section">
+            <div className="section-title">📊 五维能力分析</div>
+            <div className="radar-chart">
+              <div style={{display: 'flex', justifyContent: 'space-around', alignItems: 'center', height: 150}}>
+                {abilities.map((a, i) => (
+                  <div key={i} style={{
+                    width: 60,
+                    height: 60,
+                    borderRadius: '50%',
+                    background: `conic-gradient(#22c55e ${a.score * 3.6}deg, rgba(255,255,255,0.1) 0deg)`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}>
+                    <div style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: '50%',
+                      background: '#0a0f0d',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontWeight: 600,
+                      color: '#22c55e'
+                    }}>{a.score}</div>
+                  </div>
+                ))}
+              </div>
+              <div className="radar-labels">
+                {abilities.map((a, i) => (
+                  <div key={i} className="radar-label">
+                    <span>{a.score}</span>
+                    {a.name}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="result-section">
+            <div className="section-title">🎬 检测到的击球片段 (4个)</div>
+            <div className="clips-grid">
+              {clips.map((c, i) => (
+                <div key={i} className="clip-card">
+                  <div className="clip-thumb">{c.type}</div>
+                  <div className="clip-info">
+                    <h4>{c.name}</h4>
+                    <p>{c.time}</p>
+                  </div>
+                  <div className="clip-score">{c.score}分</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="result-section">
+            <div className="section-title">💡 改进建议</div>
+            <div className="suggestions">
+              {suggestions.map((s, i) => (
+                <div key={i} className="suggestion-card">
+                  <h4>{s.title}</h4>
+                  <p>{s.desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="bottom-nav">
+            <button className="nav-btn" onClick={() => navigate('home')}>
+              🏠 返回首页
+            </button>
+            <button className="nav-btn primary">
+              📥 下载报告
+            </button>
+          </div>
+        </div>
+      );
+    };
+
+    // History Screen
+    const HistoryScreen = () => {
+      const history = [
+        { date: '2026-04-25', score: 78, clips: 4, duration: '02:34' },
+        { date: '2026-04-23', score: 75, clips: 6, duration: '05:12' },
+        { date: '2026-04-20', score: 72, clips: 3, duration: '01:58' },
+      ];
+
+      return (
+        <div className="gradient-bg" style={{minHeight: '100vh', paddingBottom: 100}}>
+          <div className="screen-header">
+            <h2 className="screen-title">历史记录</h2>
+            <p className="screen-subtitle">共 3 次分析记录</p>
+          </div>
+          <div style={{padding: '0 24px'}}>
+            {history.map((h, i) => (
+              <div key={i} style={{
+                padding: 20,
+                background: 'rgba(255,255,255,0.03)',
+                borderRadius: 16,
+                marginBottom: 16,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 16
+              }}>
+                <div style={{
+                  width: 60,
+                  height: 60,
+                  borderRadius: 12,
+                  background: 'linear-gradient(135deg, #22c55e, #16a34a)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 24,
+                  fontWeight: 700
+                }}>{h.score}</div>
+                <div style={{flex: 1}}>
+                  <h4 style={{marginBottom: 4}}>{h.date}</h4>
+                  <p style={{color: '#9ca3af', fontSize: 13}}>
+                    {h.clips}个片段 · {h.duration}
+                  </p>
+                </div>
+                <button style={{
+                  padding: '8px 16px',
+                  background: 'rgba(34,197,94,0.2)',
+                  border: 'none',
+                  borderRadius: 8,
+                  color: '#22c55e',
+                  cursor: 'pointer'
+                }}>查看</button>
+              </div>
+            ))}
+          </div>
+          <button className="back-btn" style={{position: 'fixed', top: 20, left: 20}} onClick={() => navigate('home')}>
+            ←
+          </button>
+        </div>
+      );
+    };
+
+    // Render
+    const App = () => {
+      switch(currentPage) {
+        case 'home': return <HomeScreen />;
+        case 'picker': return <VideoPickerScreen />;
+        case 'upload': return <UploadScreen />;
+        case 'processing': return <ProcessingScreen />;
+        case 'result': return <ResultScreen />;
+        case 'history': return <HistoryScreen />;
+        default: return <HomeScreen />;
+      }
+    };
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

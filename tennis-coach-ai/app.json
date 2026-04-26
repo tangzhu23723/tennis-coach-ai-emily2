@@ -1,0 +1,57 @@
+{
+  "expo": {
+    "name": "TennisCoach AI",
+    "slug": "tennis-coach-ai",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#1a1a2e"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.tenniscoach.ai",
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "我们需要访问您的相册来选择网球训练视频进行分析",
+        "NSCameraUsageDescription": "您可以使用相机录制网球训练视频",
+        "NSMicrophoneUsageDescription": "录制视频时需要使用麦克风"
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#1a1a2e"
+      },
+      "package": "com.tenniscoach.ai",
+      "permissions": [
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "CAMERA",
+        "RECORD_AUDIO"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-notifications",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "我们需要访问您的相册来选择网球训练视频进行分析"
+        }
+      ],
+      "expo-asset"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "tennis-coach-ai"
+      }
+    }
+  }
+}
