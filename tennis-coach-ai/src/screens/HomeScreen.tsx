@@ -9,14 +9,11 @@ import {
   StatusBar,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { COLORS } from '../constants';
+import { COLORS, APP_VERSION, APP_BUILD_DATE } from '../constants';
 import { Button } from '../components';
 import { RootStackParamList } from '../types';
 import { useAppStore } from '../store';
 import { formatDateTime } from '../utils';
-
-const APP_VERSION = 'v2.2.0';
-const BUILD_DATE = new Date().toISOString().split('T')[0];
 
 type HomeScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Home'>;
@@ -75,8 +72,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
         {/* 版本信息 */}
         <View style={styles.versionSection}>
-          <Text style={styles.versionText}>{APP_VERSION}</Text>
-          <Text style={styles.buildDate}>Build: {BUILD_DATE}</Text>
+          <Text style={styles.versionText}>v{APP_VERSION}</Text>
+          <Text style={styles.buildDate}>Build: {APP_BUILD_DATE}</Text>
           <Text style={styles.updateHint}>有新版本？尝试 Ctrl+Shift+R 强制刷新</Text>
         </View>
 
