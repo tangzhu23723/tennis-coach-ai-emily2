@@ -3,6 +3,9 @@
 
 import express, { Request, Response } from 'express';
 import cors from 'cors';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -14,6 +17,27 @@ const DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions';
 // 中间件
 app.use(cors());
 app.use(express.json());
+
+// 视频上传存储配置
+const uploadsDir = path.join(__dirname, '../uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
+const storage = multer.diskStorage({
+  destination: (_req, _file, cb) => {
+    cb(null, uploadsDir);
+  },
+  filename: (_req, file, cb) => {
+    const uniqueName = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}${path.extname(file.originalname)}`;
+    cb(null, uniqueName);
+  },
+});
+
+const upload = multer({ storage, limits: { fileSize: 500 * 1024 * 1024 } }); // 500MB
+
+// 静态服务上传的视频文件
+app.use('/uploads', express.static(uploadsDir));
 
 // 生成唯一 ID
 const generateId = (): string => {
@@ -28,6 +52,17 @@ const analysisTasks = new Map<string, {
   error?: string;
 }>();
 
+// 存储已上传的视频信息
+const videoStorage = new Map<string, {
+  id: string;
+  fileName: string;
+  originalName: string;
+  fileSize: number;
+  mimeType: string;
+  url: string;
+  uploadedAt: string;
+}>();
+
 // ==================== API 路由 ====================
 
 // 健康检查
@@ -35,21 +70,59 @@ app.get('/api/health', (req: Request, res: Response) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// 视频上传预签名（简化版，实际应使用云存储）
-app.post('/api/videos/upload', (req: Request, res: Response) => {
-  const { fileName, fileSize } = req.body;
-
-  if (!fileName || !fileSize) {
-    return res.status(400).json({ error: 'Missing required fields' });
+// 视频上传（真实上传到服务器）
+app.post('/api/videos/upload', upload.single('video'), (req: Request, res: Response) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'No video file provided' });
   }
 
   const videoId = generateId();
-  // 模拟预签名 URL，实际应使用阿里云 OSS / 腾讯云 COS
-  const uploadUrl = `https://storage.example.com/upload/${videoId}`;
+  const fileName = req.file.filename;
+  const originalName = req.file.originalname;
+  const fileSize = req.file.size;
+  const mimeType = req.file.mimetype;
+
+  // 保存视频元数据
+  const baseUrl = process.env.BASE_URL || `http://localhost:${PORT}`;
+  const videoUrl = `${baseUrl}/uploads/${fileName}`;
+
+  // 存储视频信息
+  videoStorage.set(videoId, {
+    id: videoId,
+    fileName,
+    originalName,
+    fileSize,
+    mimeType,
+    url: videoUrl,
+    uploadedAt: new Date().toISOString(),
+  });
+
+  console.log(`[Video Upload] ${originalName} -> ${videoUrl}`);
 
   res.json({
     success: true,
-    data: { videoId, uploadUrl, expiresIn: 3600 },
+    data: {
+      videoId,
+      videoUrl,
+      fileName: originalName,
+      fileSize,
+      mimeType,
+    },
+  });
+});
+
+// 获取已上传视频的 URL
+app.get('/api/videos/:videoId', (req: Request, res: Response) => {
+  const { videoId } = req.params;
+  const video = videoStorage.get(videoId);
+
+  if (!video) {
+    return res.status(404).json({ error: 'Video not found' });
+  }
+
+  res.json({
+    success: true,
+    data: video,
   });
 });
 
