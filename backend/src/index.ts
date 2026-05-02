@@ -20,7 +20,12 @@ const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || '';
 const DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions';
 
 // 中间件
-app.use(cors());
+// CORS：允许前端跨域访问（CloudBase HTTPS → 服务器 HTTP）
+app.use(cors({
+  origin: '*',                      // 生产环境可改为具体域名
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+}));
 app.use(express.json());
 
 // 视频上传存储配置
