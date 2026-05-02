@@ -111,12 +111,20 @@ export const ClipCard: React.FC<ClipCardProps> = ({
       // Web 平台使用 HTML5 video
       if (isWeb) {
         return (
-          <VideoPlayerWeb
-            uri={videoUri}
-            startTime={clip.startTime}
-            endTime={clip.endTime}
-            onEnded={handleWebEnded}
-          />
+          <View>
+            {/* 提示：当前播放的是原始视频的特定区间 */}
+            <View style={styles.previewHint}>
+              <Text style={styles.previewHintText}>
+                💡 播放原始视频 {formatDuration(clip.startTime)}-{formatDuration(clip.endTime)} 区间
+              </Text>
+            </View>
+            <VideoPlayerWeb
+              uri={videoUri}
+              startTime={clip.startTime}
+              endTime={clip.endTime}
+              onEnded={handleWebEnded}
+            />
+          </View>
         );
       }
       
@@ -275,6 +283,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     position: 'relative',
+  },
+  // 预览提示
+  previewHint: {
+    backgroundColor: 'rgba(0,0,0,0.8)',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+  },
+  previewHintText: {
+    color: '#FFF',
+    fontSize: 11,
+    fontWeight: '500',
   },
   video: {
     width: '100%',

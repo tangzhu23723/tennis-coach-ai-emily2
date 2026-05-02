@@ -23,6 +23,7 @@ export const VideoPlayerWeb: React.FC<VideoPlayerWebProps> = ({
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState(startTime);
+  const [error, setError] = useState<string | null>(null);
 
   // 视频加载完成
   const handleLoadedMetadata = useCallback(() => {
@@ -31,8 +32,16 @@ export const VideoPlayerWeb: React.FC<VideoPlayerWebProps> = ({
       videoRef.current.currentTime = startTime;
       setIsLoading(false);
       setCurrentTime(startTime);
+      setError(null); // 清除之前的错误
     }
   }, [startTime]);
+
+  // 视频加载错误
+  const handleError = useCallback((e: any) => {
+    console.error('[VideoPlayerWeb] 视频加载失败:', e);
+    setIsLoading(false);
+    setError(`视频加载失败，请检查视频格式或网络连接`);
+  }, []);
 
   // 播放/暂停切换
   const togglePlay = useCallback(() => {
@@ -89,14 +98,24 @@ export const VideoPlayerWeb: React.FC<VideoPlayerWebProps> = ({
         onPlay={() => setIsPlaying(true)}
         onPause={() => setIsPlaying(false)}
         onEnded={onEnded}
+        onError={handleError}
         preload="metadata"
         playsInline
       />
 
       {/* 加载指示器 */}
-      {isLoading && (
+      {isLoading && !error && (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color="#FFF" />
+        </View>
+      )}
+
+      {/* 错误提示 */}
+      {error && (
+        <View style={styles.errorOverlay}>
+          <Text style={styles.errorIcon}>⚠️</Text>
+          <Text style={styles.errorText}>{error}</Text>
+          <Text style={styles.errorHint}>视频地址: {uri}</Text>
         </View>
       )}
 
@@ -144,6 +163,30 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  errorOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  errorIcon: {
+    fontSize: 32,
+    marginBottom: 8,
+  },
+  errorText: {
+    color: '#FF6B6B',
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  errorHint: {
+    color: '#999',
+    fontSize: 10,
+    textAlign: 'center',
+    marginTop: 4,
   },
   playButtonOverlay: {
     ...StyleSheet.absoluteFillObject,
