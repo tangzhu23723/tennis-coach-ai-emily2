@@ -305,12 +305,13 @@ function processEnergyData(
  */
 export const getAnalysisResult = async (
   videoId: string,
-  videoDuration: number = 15,
+  videoDuration: number = 30,
   activeRanges?: Array<{ start: number; end: number }>
 ): Promise<ApiResponse<AnalysisResult>> => {
   try {
-    // 使用传入的有效区间，如果没有则为空数组（会使用默认分段逻辑）
+    const isRealData = activeRanges && activeRanges.length > 0;
     const ranges = activeRanges || [];
+
     const scores = {
       forehand: 0,
       backhand: 0,
@@ -318,150 +319,109 @@ export const getAnalysisResult = async (
       footwork: 70,
       stability: 73,
     };
-    
-    // 根据音频检测到的区间生成片段
+
     const clips: AnalysisResult['validClips'] = [];
     let clipId = 1;
-    
-    // 默认检测到的击球类型
-    const detectedShotTypes = ['serve'];
-    
-    if (ranges.length > 0) {
-      // 基于音频分析结果生成片段
+    const detectedShotTypes: string[] = [];
+
+    if (isRealData) {
+      // ── 真实音频分析结果 ──
       for (const range of ranges) {
         const clipDuration = range.end - range.start;
-        const clipTypes: Array<'serve' | 'forehand' | 'backhand'> = ['serve', 'forehand', 'backhand'];
-        
-        // 根据片段时长决定击球类型
+        // 根据片段时长推断击球类型（仅供参考，未来由 AI 识别）
         let shotType: 'serve' | 'forehand' | 'backhand';
-        if (clipDuration > 3) {
-          // 较长的片段可能是回合
-          shotType = clipTypes[Math.floor(Math.random() * clipTypes.length)];
-        } else {
-          // 较短的片段通常是发球
+        if (clipDuration < 2) {
           shotType = 'serve';
+        } else if (clipDuration < 4) {
+          shotType = 'forehand';
+        } else {
+          shotType = 'backhand';
         }
-        
+
         clips.push({
           id: `clip-${clipId++}`,
           startTime: range.start,
           endTime: range.end,
           type: shotType,
-          confidence: 0.75 + Math.random() * 0.2,
-          description: getShotDescription(shotType),
+          confidence: 0.8 + Math.random() * 0.15,
+          description: `有效击球区间，时长 ${(clipDuration).toFixed(1)} 秒`,
         });
       }
-      
-      // 更新检测到的击球类型
-      const typeSet = new Set(clips.map(c => c.type));
-      typeSet.forEach(t => {
-        if (t === 'serve') detectedShotTypes.push('serve');
-        if (t === 'forehand') detectedShotTypes.push('forehand');
-        if (t === 'backhand') detectedShotTypes.push('backhand');
-      });
-      
-      // 更新分数
-      scores.serve = 75;
-      if (typeSet.has('forehand')) scores.forehand = 72;
-      if (typeSet.has('backhand')) scores.backhand = 68;
-      
     } else {
-      // 没有音频数据时，按固定间隔生成合理数量的片段
-      // 模拟真实场景：基于视频实际时长生成合理的片段分布
-      const totalDuration = videoDuration;
-      // 计算合理的片段数量（视频总长的1/5到1/4作为有效内容）
-      const estimatedClipCount = Math.max(2, Math.min(8, Math.floor(totalDuration / 8)));
-      
-      // 平均每个片段占据的时间
-      const avgClipLength = 3.5;
-      const minGap = (totalDuration - estimatedClipCount * avgClipLength) / (estimatedClipCount + 1);
-      
-      let currentTime = Math.max(2, minGap * 0.5); // 从2秒或更早开始
-      const gapRange = Math.max(3, minGap * 0.6);
-      
-      while (currentTime + avgClipLength < totalDuration - 2 && clipId <= estimatedClipCount + 2) {
-        // 随机生成片段时长（2-5秒，符合真实运动场景）
-        const clipDuration = 2 + Math.random() * 3;
-        const startTime = Math.round(currentTime * 10) / 10;
-        const endTime = Math.round(Math.min(currentTime + clipDuration, totalDuration) * 10) / 10;
-        
-        // 随机决定击球类型（但不显示给用户，只用于内部数据）
-        const clipTypes: Array<'serve' | 'forehand' | 'backhand'> = ['serve', 'forehand', 'backhand'];
-        const shotType = clipTypes[Math.floor(Math.random() * clipTypes.length)];
-        
+      // ── 降级：按视频时长均匀估算（无音频数据时） ──
+      // 注意：这是估算，不是真实检测结果
+      const estimatedCount = Math.max(2, Math.min(8, Math.floor(videoDuration / 10)));
+      const segmentLen = videoDuration / (estimatedCount + 1);
+
+      for (let i = 0; i < estimatedCount; i++) {
+        const startTime = round1(segmentLen * (i + 0.5));
+        const duration = 2.5 + Math.random() * 1.5;
+        const endTime = round1(Math.min(startTime + duration, videoDuration));
+
         clips.push({
           id: `clip-${clipId++}`,
           startTime,
           endTime,
-          type: shotType,
-          confidence: 0.7 + Math.random() * 0.25,
-          description: `有效击球区间，时长${Math.round(clipDuration * 10) / 10}秒`,
+          type: 'serve',
+          confidence: 0.55 + Math.random() * 0.2,
+          description: '（估算片段，未检测到音频）',
         });
-        
-        // 下一个片段的起始位置
-        currentTime = endTime + minGap + Math.random() * gapRange;
-        
-        if (currentTime >= totalDuration - 3) break;
       }
-      
-      // 更新检测到的类型和分数
-      if (clips.some(c => c.type === 'serve')) detectedShotTypes.push('serve');
-      if (clips.some(c => c.type === 'forehand')) detectedShotTypes.push('forehand');
-      if (clips.some(c => c.type === 'backhand')) detectedShotTypes.push('backhand');
-      
-      scores.serve = 75;
-      if (detectedShotTypes.includes('forehand')) scores.forehand = 72;
-      if (detectedShotTypes.includes('backhand')) scores.backhand = 68;
     }
-    
-    // 按时间排序
+
+    // 更新检测到的击球类型
+    const typeSet = new Set(clips.map(c => c.type));
+    typeSet.forEach(t => {
+      if (!detectedShotTypes.includes(t)) detectedShotTypes.push(t);
+    });
+
+    scores.serve = typeSet.has('serve') ? 75 : 0;
+    scores.forehand = typeSet.has('forehand') ? 72 : 0;
+    scores.backhand = typeSet.has('backhand') ? 68 : 0;
+
     clips.sort((a, b) => a.startTime - b.startTime);
-    
-    // 只针对检测到的击球类型生成建议
+
     const suggestions = generateSuggestions(detectedShotTypes, clips);
-    
-    // 计算总分
-    const activeScores = Object.entries(scores)
-      .filter(([_, v]) => v > 0)
-      .map(([_, v]) => v as number);
-    const overallScore = activeScores.length > 0 
+
+    const activeScores = Object.values(scores).filter(v => v > 0);
+    const overallScore = activeScores.length > 0
       ? Math.round(activeScores.reduce((a, b) => a + b, 0) / activeScores.length)
-      : 0;
-    
+      : 50;
+
     const grade = overallScore >= 80 ? 'advanced' : overallScore >= 60 ? 'intermediate' : 'beginner';
-    
+
     const shotTypeNames: Record<string, string> = {
-      serve: '发球',
-      forehand: '正手',
-      backhand: '反手'
+      serve: '发球', forehand: '正手', backhand: '反手',
     };
     const detectedNames = [...new Set(detectedShotTypes)].map(t => shotTypeNames[t] || t).join('、');
-    
-    const mockResult: AnalysisResult = {
+
+    const dataNote = isRealData
+      ? `基于音频能量分析检测到 ${clips.length} 个有效击球片段`
+      : `⚠️ 音频分析未获取到数据，以下为基于视频时长(${Math.round(videoDuration)}秒)的估算结果，仅供参考`;
+
+    const result: AnalysisResult = {
       videoId,
       overallScore,
       grade,
       scores,
       validClips: clips,
       suggestions,
-      summary: `视频时长 ${Math.round(videoDuration)} 秒，已截取 ${clips.length} 个有效击球片段（已过滤入场、换边及无活动时段）。${detectedNames ? `基于片段分析，检测到 ${detectedNames}相关动作。` : ''} ${overallScore >= 70 ? '整体表现良好。' : overallScore >= 50 ? '有一定基础，建议加强练习。' : '建议从基础动作开始练习。'}`,
+      summary: `${dataNote}。${detectedNames ? `检测到 ${detectedNames} 相关动作。` : ''}`,
       strongPoints: detectedShotTypes.includes('serve') ? ['发球动作连贯'] : [],
-      weakPoints: detectedShotTypes.includes('serve') ? ['发球稳定性可提升'] : [],
+      weakPoints: detectedShotTypes.includes('serve') ? ['发球稳定性可进一步提升'] : [],
       generatedAt: new Date().toISOString(),
-      processingTime: Math.round(videoDuration * 1.5),
+      processingTime: Math.round(videoDuration * 0.5),
     };
-    
-    return {
-      success: true,
-      data: mockResult,
-    };
+
+    return { success: true, data: result };
   } catch (error) {
-    return {
-      success: false,
-      error: '获取分析结果失败',
-    };
+    return { success: false, error: '获取分析结果失败' };
   }
 };
+
+function round1(v: number) {
+  return Math.round(v * 10) / 10;
+}
 
 // 获取击球类型描述
 function getShotDescription(shotType: string): string {
