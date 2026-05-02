@@ -25,9 +25,35 @@ export const VideoPlayerWeb: React.FC<VideoPlayerWebProps> = ({
   const [currentTime, setCurrentTime] = useState(startTime);
   const [error, setError] = useState<string | null>(null);
 
+  // 调试日志：组件挂载和 URI 变化
+  useEffect(() => {
+    console.log('[VideoPlayerWeb] 组件渲染，video URI:', uri);
+    console.log('[VideoPlayerWeb] startTime:', startTime, 'endTime:', endTime);
+    if (!uri) {
+      setError('视频地址为空，请重新上传视频');
+    }
+    
+    // 加载超时：10秒后如果还在加载，显示错误
+    const timeout = setTimeout(() => {
+      if (isLoading) {
+        console.error('[VideoPlayerWeb] 视频加载超时');
+        setError('视频加载超时，请检查网络连接或视频地址是否正确');
+        setIsLoading(false);
+      }
+    }, 10000);
+    
+    return () => clearTimeout(timeout);
+  }, [uri, startTime, endTime]);
+
   // 视频加载完成
   const handleLoadedMetadata = useCallback(() => {
     if (videoRef.current) {
+      console.log('[VideoPlayerWeb] 元数据加载完成', {
+        duration: videoRef.current.duration,
+        videoWidth: videoRef.current.videoWidth,
+        videoHeight: videoRef.current.videoHeight,
+        readyState: videoRef.current.readyState,
+      });
       // ✅ 关键：设置起始时间
       videoRef.current.currentTime = startTime;
       setIsLoading(false);
@@ -36,16 +62,43 @@ export const VideoPlayerWeb: React.FC<VideoPlayerWebProps> = ({
     }
   }, [startTime]);
 
-  // 视频加载错误
-  const handleError = useCallback((e: any) => {
-    console.error('[VideoPlayerWeb] 视频加载失败:', e);
+  // 视频加载错误（使用原生事件的target.error获取详细错误）
+  const handleError = useCallback(() => {
+    if (videoRef.current) {
+      const mediaError = videoRef.current.error;
+      let errorMsg = '视频加载失败';
+      if (mediaError) {
+        switch (mediaError.code) {
+          case mediaError.MEDIA_ERR_ABORTED:
+            errorMsg = '视频加载被中止';
+            break;
+          case mediaError.MEDIA_ERR_NETWORK:
+            errorMsg = '网络错误，无法加载视频';
+            break;
+          case mediaError.MEDIA_ERR_DECODE:
+            errorMsg = '视频解码错误，格式可能不支持';
+            break;
+          case mediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
+            errorMsg = '视频格式不支持或视频地址无效';
+            break;
+        }
+        console.error('[VideoPlayerWeb] 视频错误详情:', {
+          code: mediaError.code,
+          message: mediaError.message,
+          uri,
+        });
+      }
+      setError(errorMsg);
+    }
     setIsLoading(false);
-    setError(`视频加载失败，请检查视频格式或网络连接`);
-  }, []);
+  }, [uri]);
 
   // 播放/暂停切换
   const togglePlay = useCallback(() => {
-    if (!videoRef.current) return;
+    if (!videoRef.current) {
+      setError('视频元素未准备好');
+      return;
+    }
 
     if (isPlaying) {
       videoRef.current.pause();
@@ -54,7 +107,11 @@ export const VideoPlayerWeb: React.FC<VideoPlayerWebProps> = ({
       if (videoRef.current.currentTime < startTime || videoRef.current.currentTime >= endTime) {
         videoRef.current.currentTime = startTime;
       }
-      videoRef.current.play();
+      // 播放可能失败（自动播放策略等）
+      videoRef.current.play().catch((err) => {
+        console.error('[VideoPlayerWeb] 播放失败:', err);
+        setError(`播放失败: ${err.message || '未知错误'}`);
+      });
     }
   }, [isPlaying, startTime, endTime]);
 
