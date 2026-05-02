@@ -28,6 +28,7 @@ export const VideoPlayerWeb: React.FC<VideoPlayerWebProps> = ({
   // 调试日志：组件挂载和 URI 变化
   useEffect(() => {
     console.log('[VideoPlayerWeb] 组件渲染，video URI:', uri);
+    console.log('[VideoPlayerWeb] URI 类型:', uri.startsWith('blob:') ? 'blob' : uri.startsWith('http') ? '远程URL' : '其他');
     console.log('[VideoPlayerWeb] startTime:', startTime, 'endTime:', endTime);
     if (!uri) {
       setError('视频地址为空，请重新上传视频');
@@ -54,6 +55,15 @@ export const VideoPlayerWeb: React.FC<VideoPlayerWebProps> = ({
         videoHeight: videoRef.current.videoHeight,
         readyState: videoRef.current.readyState,
       });
+      
+      // 验证视频时长是否合理
+      if (videoRef.current.duration === Infinity || isNaN(videoRef.current.duration)) {
+        console.error('[VideoPlayerWeb] 视频时长无效');
+        setError('视频时长无法获取，请尝试重新上传');
+        setIsLoading(false);
+        return;
+      }
+      
       // ✅ 关键：设置起始时间
       videoRef.current.currentTime = startTime;
       setIsLoading(false);
@@ -67,25 +77,32 @@ export const VideoPlayerWeb: React.FC<VideoPlayerWebProps> = ({
     if (videoRef.current) {
       const mediaError = videoRef.current.error;
       let errorMsg = '视频加载失败';
+      const isBlob = uri.startsWith('blob:');
+      
       if (mediaError) {
         switch (mediaError.code) {
           case mediaError.MEDIA_ERR_ABORTED:
             errorMsg = '视频加载被中止';
             break;
           case mediaError.MEDIA_ERR_NETWORK:
-            errorMsg = '网络错误，无法加载视频';
+            errorMsg = isBlob 
+              ? '网络错误，请检查网络连接' 
+              : '无法从服务器加载视频，可能视频已过期';
             break;
           case mediaError.MEDIA_ERR_DECODE:
             errorMsg = '视频解码错误，格式可能不支持';
             break;
           case mediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
-            errorMsg = '视频格式不支持或视频地址无效';
+            errorMsg = isBlob
+              ? '视频片段已失效，请重新上传视频'
+              : '视频格式不支持或视频地址无效';
             break;
         }
         console.error('[VideoPlayerWeb] 视频错误详情:', {
           code: mediaError.code,
           message: mediaError.message,
-          uri,
+          uri: uri.substring(0, 100) + (uri.length > 100 ? '...' : ''),
+          isBlob,
         });
       }
       setError(errorMsg);
