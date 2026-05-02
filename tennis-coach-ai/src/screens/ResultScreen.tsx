@@ -30,7 +30,10 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({
   route,
 }) => {
   const { videoId } = route.params;
-  const { analysisResult, currentVideo } = useAppStore();
+  const { analysisResult, currentVideo, videoHistory } = useAppStore();
+  
+  // 如果 currentVideo 为空（页面刷新后），从 videoHistory 中查找
+  const effectiveVideo = currentVideo || videoHistory.find(v => v.id === videoId) || null;
   const [activeTab, setActiveTab] = useState<'overview' | 'clips' | 'suggestions'>('overview');
 
   // 分享报告
@@ -204,7 +207,7 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({
                   clip={clip}
                   clipIndex={index + 1}
                   showAnalysisButton={true}
-                  videoUri={currentVideo?.localUri || currentVideo?.videoUrl}
+                  videoUri={effectiveVideo?.localUri || effectiveVideo?.videoUrl}
                 />
               ))}
             </View>
