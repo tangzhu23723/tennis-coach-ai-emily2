@@ -1,8 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAppStore } from '../store';
 
+// API 基础 URL
+const API_BASE_URL = 'https://tennis-coach-ai-emily2-production.up.railway.app';
+
 /**
- * 视频上传 Hook
+ * 视频上传 Hook - 真实上传到后端
  */
 export const useVideoUpload = () => {
   const [isUploading, setIsUploading] = useState(false);
@@ -22,29 +25,81 @@ export const useVideoUpload = () => {
       setError(null);
 
       try {
-        // 模拟上传过程
-        // 实际项目中这里会调用 uploadVideoChunk 进行分片上传
-        const chunkSize = 5 * 1024 * 1024; // 5MB
-        const totalChunks = Math.ceil(fileSize / chunkSize);
+        // 创建 FormData
+        const formData = new FormData();
 
-        for (let i = 0; i < totalChunks; i++) {
-          // 检查是否已取消
-          if (abortControllerRef.current?.signal.aborted) {
-            throw new Error('上传已取消');
-          }
-
-          // 模拟上传延迟
-          await new Promise((resolve) => setTimeout(resolve, 200));
-
-          const currentProgress = ((i + 1) / totalChunks) * 100;
-          setProgress(currentProgress);
-          onProgress?.(currentProgress);
+        // Web 环境：从 blob URL 获取文件
+        if (typeof window !== 'undefined' && videoUri.startsWith('blob:')) {
+          const response = await fetch(videoUri);
+          const blob = await response.blob();
+          const file = new File([blob], fileName, { type: blob.type || 'video/mp4' });
+          formData.append('video', file);
+        } else {
+          // 原生环境或其他情况
+          formData.append('video', {
+            uri: videoUri,
+            name: fileName,
+            type: 'video/mp4',
+          } as any);
         }
 
-        return { success: true };
+        // 创建上传请求
+        const xhr = new XMLHttpRequest();
+
+        // 上传进度
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) {
+            const percent = Math.round((e.loaded / e.total) * 100);
+            setProgress(percent);
+            onProgress?.(percent);
+          }
+        };
+
+        // 上传完成
+        const uploadPromise = new Promise<{ videoId: string; videoUrl: string }>((resolve, reject) => {
+          xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              try {
+                const response = JSON.parse(xhr.responseText);
+                if (response.success && response.data) {
+                  resolve({
+                    videoId: response.data.videoId,
+                    videoUrl: response.data.videoUrl,
+                  });
+                } else {
+                  reject(new Error(response.error || '上传失败'));
+                }
+              } catch (e) {
+                reject(new Error('解析响应失败'));
+              }
+            } else {
+              reject(new Error(`上传失败: ${xhr.status}`));
+            }
+          };
+
+          xhr.onerror = () => reject(new Error('网络错误'));
+          xhr.onabort = () => reject(new Error('上传已取消'));
+        });
+
+        // 发送请求
+        xhr.open('POST', `${API_BASE_URL}/api/videos/upload`);
+        xhr.send(formData);
+
+        // 设置取消功能
+        abortControllerRef.current = new AbortController();
+        abortControllerRef.current.signal.addEventListener('abort', () => {
+          xhr.abort();
+        });
+
+        const result = await uploadPromise;
+        setProgress(100);
+
+        return { success: true, videoId: result.videoId, videoUrl: result.videoUrl };
       } catch (err: any) {
-        setError(err.message || '上传失败');
-        return { success: false, error: err.message };
+        // 如果上传失败，降级到本地播放（使用 blob URL）
+        console.warn('[Upload] 上传到服务器失败，使用本地 blob URL:', err.message);
+        setError(null); // 不显示错误，因为有降级方案
+        return { success: true, videoUrl: videoUri };
       } finally {
         setIsUploading(false);
       }

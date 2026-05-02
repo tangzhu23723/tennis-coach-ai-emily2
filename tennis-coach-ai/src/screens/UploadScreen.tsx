@@ -87,14 +87,16 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
     });
 
     if (result.success) {
-      // 更新状态
+      // 更新状态，保存 videoUrl（如果上传成功的话）
       useAppStore.getState().updateCurrentVideo({
         status: 'processing',
         uploadProgress: 100,
+        videoUrl: result.videoUrl || videoUri, // 优先使用服务器 URL，回退到本地 blob URL
       });
       useAppStore.getState().updateInHistory(videoId, {
         status: 'processing',
         uploadProgress: 100,
+        videoUrl: result.videoUrl || videoUri,
       });
 
       // 跳转到处理页面
