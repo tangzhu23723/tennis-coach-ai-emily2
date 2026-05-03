@@ -1,165 +1,146 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 
-// Web 环境下使用原生 HTML5 video
-// 注意：这是 Web 专用组件，需要在 Web 平台运行
-
 interface VideoPlayerWebProps {
   uri: string;
-  startTime: number; // 起始时间（秒）
-  endTime: number; // 结束时间（秒）
+  startTime: number;
+  endTime: number;
   onEnded?: () => void;
   onTimeUpdate?: (currentTime: number) => void;
 }
 
+/**
+ * Web 端视频播放器 - v2.4.1
+ * 使用原生 HTML5 video，避免 React Native Web 样式兼容性问题
+ */
 export const VideoPlayerWeb: React.FC<VideoPlayerWebProps> = ({
   uri,
   startTime,
   endTime,
   onEnded,
-  onTimeUpdate,
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState(startTime);
   const [error, setError] = useState<string | null>(null);
+  const hasSeeked = useRef(false);
 
-  // 调试日志：组件挂载和 URI 变化
+  // 组件挂载时创建原生 video 元素
   useEffect(() => {
-    console.log('[VideoPlayerWeb] 组件渲染，video URI:', uri);
-    console.log('[VideoPlayerWeb] URI 类型:', uri.startsWith('blob:') ? 'blob' : uri.startsWith('http') ? '远程URL' : '其他');
-    console.log('[VideoPlayerWeb] startTime:', startTime, 'endTime:', endTime);
-    if (!uri) {
-      setError('视频地址为空，请重新上传视频');
-    }
+    if (!containerRef.current || !uri) return;
     
-    // 加载超时：10秒后如果还在加载，显示错误
-    const timeout = setTimeout(() => {
-      if (isLoading) {
-        console.error('[VideoPlayerWeb] 视频加载超时');
-        setError('视频加载超时，请检查网络连接或视频地址是否正确');
-        setIsLoading(false);
-      }
-    }, 10000);
+    hasSeeked.current = false;
+    setIsLoading(true);
+    setError(null);
     
-    return () => clearTimeout(timeout);
-  }, [uri, startTime, endTime]);
-
-  // 视频加载完成
-  const handleLoadedMetadata = useCallback(() => {
-    if (videoRef.current) {
-      console.log('[VideoPlayerWeb] 元数据加载完成', {
-        duration: videoRef.current.duration,
-        videoWidth: videoRef.current.videoWidth,
-        videoHeight: videoRef.current.videoHeight,
-        readyState: videoRef.current.readyState,
-      });
-      
-      // 验证视频时长是否合理
-      if (videoRef.current.duration === Infinity || isNaN(videoRef.current.duration)) {
-        console.error('[VideoPlayerWeb] 视频时长无效');
+    // 清理之前的 video
+    containerRef.current.innerHTML = '';
+    
+    const video = document.createElement('video');
+    video.style.cssText = `
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      background: #000;
+    `;
+    video.preload = 'metadata';
+    video.playsInline = true;
+    video.muted = false;
+    
+    // 元数据加载完成
+    video.onloadedmetadata = () => {
+      console.log('[VideoPlayerWeb] 元数据加载完成，时长:', video.duration);
+      if (video.duration === Infinity || isNaN(video.duration)) {
         setError('视频时长无法获取，请尝试重新上传');
         setIsLoading(false);
         return;
       }
-    }
-  }, []);
-
-  // 视频可以播放时（数据足够，可以 seek）
-  const handleCanPlay = useCallback(() => {
-    if (videoRef.current) {
-      console.log('[VideoPlayerWeb] 视频可播放，readyState:', videoRef.current.readyState);
-      
-      // ✅ 关键：只有在视频数据充足时才能设置起始时间
-      videoRef.current.currentTime = startTime;
       setIsLoading(false);
-      setCurrentTime(startTime);
-      setError(null);
-    }
-  }, [startTime]);
-
-  // 视频加载错误（使用原生事件的target.error获取详细错误）
-  const handleError = useCallback(() => {
-    if (videoRef.current) {
-      const mediaError = videoRef.current.error;
-      let errorMsg = '视频加载失败';
-      const isBlob = uri.startsWith('blob:');
-      
-      if (mediaError) {
-        switch (mediaError.code) {
-          case mediaError.MEDIA_ERR_ABORTED:
-            errorMsg = '视频加载被中止';
-            break;
-          case mediaError.MEDIA_ERR_NETWORK:
-            errorMsg = isBlob 
-              ? '网络错误，请检查网络连接' 
-              : '无法从服务器加载视频，可能视频已过期';
-            break;
-          case mediaError.MEDIA_ERR_DECODE:
-            errorMsg = '视频解码错误，格式可能不支持';
-            break;
-          case mediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
-            errorMsg = isBlob
-              ? '视频片段已失效，请重新上传视频'
-              : '视频格式不支持或视频地址无效';
-            break;
-        }
-        console.error('[VideoPlayerWeb] 视频错误详情:', {
-          code: mediaError.code,
-          message: mediaError.message,
-          uri: uri.substring(0, 100) + (uri.length > 100 ? '...' : ''),
-          isBlob,
-        });
+    };
+    
+    // 数据加载完成，可以播放
+    video.onloadeddata = () => {
+      console.log('[VideoPlayerWeb] 数据加载完成，尝试 seek 到', startTime);
+      // seek 到起始位置
+      try {
+        video.currentTime = startTime;
+        hasSeeked.current = true;
+      } catch (e) {
+        console.error('[VideoPlayerWeb] seek 失败:', e);
       }
-      setError(errorMsg);
-    }
-    setIsLoading(false);
-  }, [uri]);
+      setCurrentTime(startTime);
+    };
+    
+    // seek 完成
+    video.onseeked = () => {
+      console.log('[VideoPlayerWeb] seek 完成，当前时间:', video.currentTime);
+      setIsLoading(false);
+    };
+    
+    // 播放
+    video.onplay = () => setIsPlaying(true);
+    video.onpause = () => setIsPlaying(false);
+    
+    // 时间更新
+    video.ontimeupdate = () => {
+      const time = video.currentTime;
+      setCurrentTime(time);
+      
+      // 到达结束时间停止
+      if (time >= endTime) {
+        video.pause();
+        video.currentTime = endTime;
+        setIsPlaying(false);
+        onEnded?.();
+      }
+    };
+    
+    // 错误
+    video.onerror = () => {
+      console.error('[VideoPlayerWeb] 视频错误');
+      const isBlob = uri.startsWith('blob:');
+      setError(isBlob ? '视频片段已失效，请重新上传视频' : '视频加载失败');
+      setIsLoading(false);
+    };
+    
+    // 结束
+    video.onended = () => {
+      setIsPlaying(false);
+      onEnded?.();
+    };
+    
+    containerRef.current.appendChild(video);
+    video.src = uri;
+    videoRef.current = video;
+    
+    return () => {
+      if (containerRef.current) {
+        containerRef.current.innerHTML = '';
+      }
+    };
+  }, [uri, startTime, endTime, onEnded]);
 
-  // 播放/暂停切换
+  // 播放/暂停
   const togglePlay = useCallback(() => {
-    if (!videoRef.current) {
-      setError('视频元素未准备好');
-      return;
-    }
+    const video = videoRef.current;
+    if (!video) return;
 
     if (isPlaying) {
-      videoRef.current.pause();
+      video.pause();
     } else {
-      // 确保从正确的起始时间播放
-      if (videoRef.current.currentTime < startTime || videoRef.current.currentTime >= endTime) {
-        videoRef.current.currentTime = startTime;
+      // 如果还没 seek 成功，先 seek
+      if (!hasSeeked.current || video.currentTime < startTime) {
+        video.currentTime = startTime;
+        hasSeeked.current = true;
       }
-      // 播放可能失败（自动播放策略等）
-      videoRef.current.play().catch((err) => {
+      video.play().catch((err) => {
         console.error('[VideoPlayerWeb] 播放失败:', err);
-        setError(`播放失败: ${err.message || '未知错误'}`);
+        setError('播放失败');
       });
     }
-  }, [isPlaying, startTime, endTime]);
-
-  // 时间更新
-  const handleTimeUpdate = useCallback(() => {
-    if (!videoRef.current) return;
-    
-    const time = videoRef.current.currentTime;
-    setCurrentTime(time);
-    onTimeUpdate?.(time);
-
-    // 到达结束时间自动停止
-    if (time >= endTime) {
-      videoRef.current.pause();
-      videoRef.current.currentTime = endTime;
-      onEnded?.();
-    }
-  }, [endTime, onEnded, onTimeUpdate]);
-
-  // 播放状态变化
-  const handlePlayPause = useCallback(() => {
-    if (!videoRef.current) return;
-    setIsPlaying(!videoRef.current.paused);
-  }, []);
+  }, [isPlaying, startTime]);
 
   // 格式化时间
   const formatTime = (seconds: number): string => {
@@ -170,58 +151,43 @@ export const VideoPlayerWeb: React.FC<VideoPlayerWebProps> = ({
 
   return (
     <View style={styles.container}>
-      <video
-        ref={videoRef}
-        src={uri}
-        style={styles.video}
-        onLoadedMetadata={handleLoadedMetadata}
-        onCanPlay={handleCanPlay}
-        onTimeUpdate={handleTimeUpdate}
-        onPlay={() => setIsPlaying(true)}
-        onPause={() => setIsPlaying(false)}
-        onEnded={onEnded}
-        onError={handleError}
-        preload="auto"
-        playsInline
-      />
-
+      {/* 原生 video 容器 */}
+      <div ref={containerRef} style={{ width: '100%', height: '100%', background: '#000' }} />
+      
       {/* 加载指示器 */}
       {isLoading && !error && (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color="#FFF" />
         </View>
       )}
-
+      
       {/* 错误提示 */}
       {error && (
         <View style={styles.errorOverlay}>
           <Text style={styles.errorIcon}>⚠️</Text>
           <Text style={styles.errorText}>{error}</Text>
-          <Text style={styles.errorHint}>视频地址: {uri}</Text>
         </View>
       )}
-
+      
       {/* 播放按钮 */}
-      <TouchableOpacity
-        style={styles.playButtonOverlay}
-        onPress={togglePlay}
-        activeOpacity={0.8}
-      >
-        {!isPlaying && !isLoading && (
-          <View style={styles.playButton}>
-            <Text style={styles.playIcon}>▶️</Text>
-          </View>
-        )}
-      </TouchableOpacity>
-
+      {!isPlaying && !isLoading && (
+        <TouchableOpacity
+          style={styles.playButton}
+          onPress={togglePlay}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.playIcon}>▶️</Text>
+        </TouchableOpacity>
+      )}
+      
       {/* 时间标签 */}
       <View style={styles.timeLabel}>
         <Text style={styles.timeLabelText}>
           {formatTime(startTime)} → {formatTime(endTime)}
         </Text>
       </View>
-
-      {/* 当前播放时间 */}
+      
+      {/* 当前时间 */}
       <View style={styles.currentTimeOverlay}>
         <Text style={styles.currentTimeText}>{formatTime(currentTime)}</Text>
       </View>
@@ -234,11 +200,6 @@ const styles = StyleSheet.create({
     height: 140,
     backgroundColor: '#000',
     position: 'relative',
-  },
-  video: {
-    width: '100%',
-    height: '100%',
-    objectFit: 'cover',
   },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
@@ -262,20 +223,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     textAlign: 'center',
-    marginBottom: 8,
-  },
-  errorHint: {
-    color: '#999',
-    fontSize: 10,
-    textAlign: 'center',
-    marginTop: 4,
-  },
-  playButtonOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   playButton: {
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    marginTop: -30,
+    marginLeft: -30,
     width: 60,
     height: 60,
     borderRadius: 30,
