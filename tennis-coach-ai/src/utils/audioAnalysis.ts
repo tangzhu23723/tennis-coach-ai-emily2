@@ -66,7 +66,7 @@ export async function analyzeVideoAudioOffline(
     const sampleRate = audioBuffer.sampleRate;
     const numChannels = audioBuffer.numberOfChannels;
 
-    // ── 3. 逐帧计算 RMS 能量（100ms 帧，50ms 步长） ──
+    // ── 3. 逐帧计算 RMS 能量（100ms 帧，50ms 步长）分批处理 ──
     const frameMs = 0.1;   // 帧长 100ms
     const hopMs = 0.05;    // 步长 50ms
     const frameLen = Math.floor(sampleRate * frameMs);
@@ -79,18 +79,41 @@ export async function analyzeVideoAudioOffline(
       channels.push(audioBuffer.getChannelData(c));
     }
 
+    // 分批处理，每批 50 帧，避免阻塞主线程
+    const BATCH_SIZE = 50;
     const rms: number[] = new Array(numFrames);
-    for (let f = 0; f < numFrames; f++) {
-      const s0 = f * hopLen;
-      let sum = 0;
-      for (let c = 0; c < channels.length; c++) {
-        const ch = channels[c];
-        for (let i = s0; i < s0 + frameLen && i < ch.length; i++) {
-          sum += ch[i] * ch[i];
+    let processedFrames = 0;
+
+    await new Promise<void>((resolve) => {
+      const processBatch = () => {
+        const end = Math.min(processedFrames + BATCH_SIZE, numFrames);
+        for (let f = processedFrames; f < end; f++) {
+          const s0 = f * hopLen;
+          let sum = 0;
+          for (let c = 0; c < channels.length; c++) {
+            const ch = channels[c];
+            for (let i = s0; i < s0 + frameLen && i < ch.length; i++) {
+              sum += ch[i] * ch[i];
+            }
+          }
+          rms[f] = Math.sqrt(sum / (frameLen * numChannels));
         }
-      }
-      rms[f] = Math.sqrt(sum / (frameLen * numChannels));
-    }
+        processedFrames = end;
+
+        // 更新进度
+        const pct = 55 + Math.round((processedFrames / numFrames) * 20);
+        onProgress?.(pct);
+
+        if (processedFrames < numFrames) {
+          // 让出主线程，继续下一批
+          setTimeout(processBatch, 0);
+        } else {
+          resolve();
+        }
+      };
+      processBatch();
+    });
+
     onProgress?.(75);
 
     // ── 4. 动态阈值（均值 + 1.2 倍标准差） ──
@@ -130,10 +153,10 @@ export async function analyzeVideoAudioOffline(
     }
 
     // ── 6. 合并间隔 < 1.5s 的相邻区间 ──
-    const merged = mergeRegions(rawRegions, 1.5);
+    const mergedRegions = mergeRegions(rawRegions, 1.5);
 
     // ── 7. 限制每段最长 10 秒，最短 1 秒 ──
-    const clips: ClipRange[] = merged
+    const clips: ClipRange[] = mergedRegions
       .filter(r => r.end - r.start >= 1.0)
       .map(r => ({
         start: r.start,

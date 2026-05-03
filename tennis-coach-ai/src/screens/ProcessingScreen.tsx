@@ -72,6 +72,23 @@ export const ProcessingScreen: React.FC<ProcessingScreenProps> = ({
 
         const videoUri = currentVideo?.localUri || currentVideo?.videoUrl;
 
+        // 检查视频是否有效（blob URL 刷新后会失效）
+        if (!videoUri) {
+          throw new Error('视频文件丢失，请重新上传');
+        }
+
+        // 验证 blob URL 是否有效
+        if (isWeb && videoUri.startsWith('blob:')) {
+          try {
+            const response = await fetch(videoUri, { method: 'HEAD' });
+            if (!response.ok) {
+              throw new Error('视频文件已过期，请重新上传');
+            }
+          } catch (e) {
+            throw new Error('视频文件已过期（刷新页面后会失效），请重新上传');
+          }
+        }
+
         // ── 步骤 2：音频分析（Web 环境） ──
         let activeRanges: Array<{ start: number; end: number }> = [];
 
