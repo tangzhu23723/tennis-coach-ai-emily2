@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAppStore } from '../store';
 
-// API 基础 URL
-const API_BASE_URL = 'https://tennis-coach-ai-emily2-production.up.railway.app';
+// API 基础 URL（腾讯云后端）
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'https://api.emilytangzhu.com';
 
 /**
  * 视频上传 Hook - 真实上传到后端

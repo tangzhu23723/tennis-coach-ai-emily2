@@ -4,6 +4,7 @@ import { Video, ResizeMode, AVPlaybackStatus } from 'expo-av';
 import { COLORS } from '../constants';
 import { Clip } from '../types';
 import { formatDuration, confidenceToPercent, getConfidenceLevel } from '../utils';
+import { isWeb } from '../utils/platform';
 
 interface ClipCardProps {
   clip: Clip;
@@ -16,9 +17,9 @@ interface ClipCardProps {
 }
 
 /**
- * 版本: 1.0.7
- * 统一使用 expo-av Video 组件，Web 端使用原生视频控件
- * 移除自定义 VideoPlayerWeb，避免 React Native Web 兼容性问题
+ * 版本: 1.0.8
+ * Web 端使用 iframe + 独立 video.html，彻底隔离 RNW 兼容性问题
+ * 原生端继续使用 expo-av Video
  */
 export const ClipCard: React.FC<ClipCardProps> = ({
   clip,
@@ -36,8 +37,8 @@ export const ClipCard: React.FC<ClipCardProps> = ({
 
   const videoRef = useRef<Video>(null);
   const hasSetInitialPosition = useRef(false);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
 
-  // 置信度等级
   const confidenceLevel = getConfidenceLevel(clip.confidence);
 
   // 模拟AI分析
@@ -48,42 +49,38 @@ export const ClipCard: React.FC<ClipCardProps> = ({
     setIsAnalyzing(false);
   };
 
-  // 视频加载完成，定位到起始时间
-  const handleLoad = useCallback(async () => {
+  // 原生平台：expo-av 回调
+  const handleExpoLoad = useCallback(async () => {
     if (videoRef.current && !hasSetInitialPosition.current) {
       hasSetInitialPosition.current = true;
-      try {
-        await videoRef.current.setPositionAsync(clip.startTime * 1000);
-      } catch (error) {
-        console.log('设置起始位置失败:', error);
-      }
+      try { await videoRef.current.setPositionAsync(clip.startTime * 1000); } catch (e) {}
     }
   }, [clip.startTime]);
 
-  // 播放状态更新
-  const handlePlaybackStatusUpdate = useCallback((status: AVPlaybackStatus) => {
+  const handleExpoPlaybackStatus = useCallback((status: AVPlaybackStatus) => {
     if (status.isLoaded) {
       setIsPlaying(status.isPlaying);
-      // 到达结束时间停止
       if (status.positionMillis >= clip.endTime * 1000) {
         videoRef.current?.pauseAsync();
-        videoRef.current?.setPositionAsync(clip.endTime * 1000);
       }
     }
   }, [clip.endTime]);
 
-  // 点击播放/暂停
-  const handleTogglePlay = useCallback(async () => {
+  const handleExpoTogglePlay = useCallback(async () => {
     if (!videoUri || !videoRef.current) return;
-
     if (isPlaying) {
       await videoRef.current.pauseAsync();
     } else {
-      hasSetInitialPosition.current = false;
       await videoRef.current.setPositionAsync(clip.startTime * 1000);
       await videoRef.current.playAsync();
     }
   }, [isPlaying, videoUri, clip.startTime]);
+
+  // Web 平台：iframe 播放结束回调
+  const handleIframeEnded = useCallback(() => {
+    setShowVideo(false);
+    setIsPlaying(false);
+  }, []);
 
   // 点击卡片
   const handleCardPress = useCallback(() => {
@@ -98,7 +95,15 @@ export const ClipCard: React.FC<ClipCardProps> = ({
 
   // 渲染预览区域
   const renderPreview = () => {
-    if (showVideo && videoUri) {
+    if (!showVideo || !videoUri) return null;
+
+    // Web 端：使用 iframe 隔离播放
+    if (isWeb) {
+      const videoUrl = videoUri.startsWith('blob:')
+        ? videoUri
+        : `${process.env.EXPO_PUBLIC_API_URL || 'https://api.emilytangzhu.com'}${videoUri.startsWith('/') ? videoUri : '/' + videoUri}`;
+      const iframeSrc = `/video.html?src=${encodeURIComponent(videoUrl)}&start=${clip.startTime}&end=${clip.endTime}`;
+
       return (
         <View>
           <View style={styles.previewHint}>
@@ -106,67 +111,50 @@ export const ClipCard: React.FC<ClipCardProps> = ({
               💡 播放 {formatDuration(clip.startTime)} - {formatDuration(clip.endTime)} 区间
             </Text>
           </View>
-
-          <TouchableOpacity
-            style={styles.videoContainer}
-            onPress={handleTogglePlay}
-            activeOpacity={0.9}
-          >
-            <Video
-              ref={videoRef}
-              source={{ uri: videoUri }}
-              style={styles.video}
-              resizeMode={ResizeMode.COVER}
-              shouldPlay={false}
-              isLooping={false}
-              useNativeControls={true}
-              onLoad={handleLoad}
-              onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
+          <View style={styles.iframeContainer}>
+            <iframe
+              ref={iframeRef}
+              src={iframeSrc}
+              style={styles.iframe as any}
+              allow="autoplay; encrypted-media"
+              onLoad={() => setIsPlaying(true)}
             />
-
-            {/* 播放提示（叠加在视频上） */}
-            {!isPlaying && (
-              <View style={styles.playOverlay}>
-                <Text style={styles.playIcon}>▶️</Text>
-              </View>
-            )}
-
-            {/* 时间范围标签 */}
-            <View style={styles.timeLabel}>
-              <Text style={styles.timeLabelText}>
-                {formatDuration(clip.startTime)} → {formatDuration(clip.endTime)}
-              </Text>
-            </View>
+          </View>
+          <TouchableOpacity style={styles.closeVideoBtn} onPress={() => setShowVideo(false)}>
+            <Text style={styles.closeVideoText}>✕ 关闭</Text>
           </TouchableOpacity>
         </View>
       );
     }
 
-    // 缩略图模式
+    // 原生平台：使用 expo-av Video
     return (
       <TouchableOpacity
-        style={styles.thumbnailContainer}
-        onPress={handleCardPress}
-        activeOpacity={0.8}
+        style={styles.videoContainer}
+        onPress={handleExpoTogglePlay}
+        activeOpacity={0.9}
       >
-        <View style={styles.thumbnailBg}>
-          <Text style={styles.thumbnailIcon}>🎾</Text>
-          {clipIndex && (
-            <View style={styles.clipIndexBadge}>
-              <Text style={styles.clipIndexText}>{clipIndex}</Text>
-            </View>
-          )}
-        </View>
+        <Video
+          ref={videoRef}
+          source={{ uri: videoUri }}
+          style={styles.video}
+          resizeMode={ResizeMode.COVER}
+          shouldPlay={false}
+          isLooping={false}
+          useNativeControls={false}
+          onLoad={handleExpoLoad}
+          onPlaybackStatusUpdate={handleExpoPlaybackStatus}
+        />
 
-        {videoUri && (
-          <View style={styles.playHint}>
-            <Text style={styles.playHintText}>▶️ 播放</Text>
+        {!isPlaying && (
+          <View style={styles.playOverlay}>
+            <Text style={styles.playIcon}>▶️</Text>
           </View>
         )}
 
-        <View style={styles.durationBadge}>
-          <Text style={styles.durationText}>
-            {formatDuration(clip.startTime)} - {formatDuration(clip.endTime)}
+        <View style={styles.timeLabel}>
+          <Text style={styles.timeLabelText}>
+            {formatDuration(clip.startTime)} → {formatDuration(clip.endTime)}
           </Text>
         </View>
       </TouchableOpacity>
@@ -175,8 +163,40 @@ export const ClipCard: React.FC<ClipCardProps> = ({
 
   return (
     <View style={styles.container}>
+      {/* 预览区域 */}
       {renderPreview()}
 
+      {/* 未播放时显示缩略图 */}
+      {!showVideo && (
+        <TouchableOpacity
+          style={styles.thumbnailContainer}
+          onPress={handleCardPress}
+          activeOpacity={0.8}
+        >
+          <View style={styles.thumbnailBg}>
+            <Text style={styles.thumbnailIcon}>🎾</Text>
+            {clipIndex && (
+              <View style={styles.clipIndexBadge}>
+                <Text style={styles.clipIndexText}>{clipIndex}</Text>
+              </View>
+            )}
+          </View>
+
+          {videoUri && (
+            <View style={styles.playHint}>
+              <Text style={styles.playHintText}>▶️ 播放</Text>
+            </View>
+          )}
+
+          <View style={styles.durationBadge}>
+            <Text style={styles.durationText}>
+              {formatDuration(clip.startTime)} - {formatDuration(clip.endTime)}
+            </Text>
+          </View>
+        </TouchableOpacity>
+      )}
+
+      {/* 详情区域 */}
       <View style={styles.details}>
         <View style={styles.header}>
           <View style={styles.clipIndexHeader}>
@@ -244,18 +264,16 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
   },
 
-  // 视频
-  videoContainer: {
-    height: 160,
+  // iframe 容器（Web）
+  iframeContainer: {
+    height: 180,
     backgroundColor: '#000',
-    justifyContent: 'center',
-    alignItems: 'center',
-    position: 'relative',
   },
-  video: {
+  iframe: {
     width: '100%',
     height: '100%',
-  },
+    border: 'none',
+  } as any,
   previewHint: {
     backgroundColor: 'rgba(0,0,0,0.8)',
     paddingVertical: 6,
@@ -266,6 +284,34 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 11,
     fontWeight: '500',
+  },
+  closeVideoBtn: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 4,
+    zIndex: 10,
+  },
+  closeVideoText: {
+    color: '#FFF',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+
+  // 视频（原生）
+  videoContainer: {
+    height: 160,
+    backgroundColor: '#000',
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  video: {
+    width: '100%',
+    height: '100%',
   },
   playOverlay: {
     position: 'absolute',
