@@ -93,7 +93,8 @@ app.post('/api/videos/upload', upload.single('video'), (req: Request, res: Respo
   const mimeType = req.file.mimetype;
 
   // 保存视频元数据
-  const baseUrl = process.env.BASE_URL || `http://localhost:${PORT}`;
+  // 使用生产环境 HTTPS 域名
+  const baseUrl = process.env.BASE_URL || 'https://api.emilytangzhu.com';
   const videoUrl = `${baseUrl}/uploads/${fileName}`;
 
   // 存储视频信息
