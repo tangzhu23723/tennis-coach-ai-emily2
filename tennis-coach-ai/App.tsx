@@ -1,5 +1,5 @@
-import React from 'react';
-import { StatusBar, LogBox } from 'react-native';
+import React, { useCallback } from 'react';
+import { StatusBar, LogBox, Platform } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -14,6 +14,9 @@ import {
   ResultScreen,
   HistoryScreen,
 } from './src/screens';
+
+// 视频弹窗（Web 端全局单例）
+import { VideoModal, useVideoModalState, closeVideoModal } from './src/components/VideoModal';
 
 // 类型
 import { RootStackParamList } from './src/types';
@@ -30,9 +33,15 @@ LogBox.ignoreLogs([
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function App() {
+  const videoModal = useVideoModalState();
+  const handleCloseVideo = useCallback(() => {
+    closeVideoModal();
+  }, []);
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
+        {/* 导航树 */}
         <NavigationContainer>
           <StatusBar
             barStyle="light-content"
@@ -105,6 +114,17 @@ export default function App() {
             />
           </Stack.Navigator>
         </NavigationContainer>
+
+        {/* 全局视频弹窗（仅 Web，浮层覆盖在导航上方） */}
+        {Platform.OS === 'web' && (
+          <VideoModal
+            visible={videoModal.visible}
+            videoUri={videoModal.videoUri}
+            startTime={videoModal.startTime}
+            endTime={videoModal.endTime}
+            onClose={handleCloseVideo}
+          />
+        )}
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

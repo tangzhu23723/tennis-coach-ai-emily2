@@ -5,6 +5,7 @@ import { COLORS } from '../constants';
 import { Clip } from '../types';
 import { formatDuration, confidenceToPercent, getConfidenceLevel } from '../utils';
 import { isWeb } from '../utils/platform';
+import { openVideoModal } from './VideoModal';
 
 interface ClipCardProps {
   clip: Clip;
@@ -17,8 +18,8 @@ interface ClipCardProps {
 }
 
 /**
- * 版本: 1.0.8
- * Web 端使用 iframe + 独立 video.html，彻底隔离 RNW 兼容性问题
+ * 版本: 1.0.9
+ * Web 端使用全局弹窗播放，彻底避免 iframe 并发冲突
  * 原生端继续使用 expo-av Video
  */
 export const ClipCard: React.FC<ClipCardProps> = ({
@@ -30,14 +31,12 @@ export const ClipCard: React.FC<ClipCardProps> = ({
   showAnalysisButton = false,
   analysisResult,
 }) => {
-  const [showVideo, setShowVideo] = useState(false);
   const [showAnalysis, setShowAnalysis] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
 
   const videoRef = useRef<Video>(null);
   const hasSetInitialPosition = useRef(false);
-  const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const confidenceLevel = getConfidenceLevel(clip.confidence);
 
@@ -76,58 +75,16 @@ export const ClipCard: React.FC<ClipCardProps> = ({
     }
   }, [isPlaying, videoUri, clip.startTime]);
 
-  // Web 平台：iframe 播放结束回调
-  const handleIframeEnded = useCallback(() => {
-    setShowVideo(false);
-    setIsPlaying(false);
-  }, []);
+  // Web 端：打开全局视频弹窗
+  const handleWebPlay = useCallback(() => {
+    if (!videoUri) return;
+    openVideoModal(videoUri, clip.startTime, clip.endTime);
+  }, [videoUri, clip.startTime, clip.endTime]);
 
-  // 点击卡片
-  const handleCardPress = useCallback(() => {
-    if (videoUri) {
-      hasSetInitialPosition.current = false;
-      setShowVideo(!showVideo);
-      setIsPlaying(false);
-    } else {
-      onPress?.(clip);
-    }
-  }, [videoUri, showVideo, onPress, clip]);
+  // 渲染原生视频播放器（仅原生平台）
+  const renderNativeVideo = () => {
+    if (!videoUri || isWeb) return null;
 
-  // 渲染预览区域
-  const renderPreview = () => {
-    if (!showVideo || !videoUri) return null;
-
-    // Web 端：使用 iframe 隔离播放
-    if (isWeb) {
-      const videoUrl = videoUri.startsWith('blob:')
-        ? videoUri
-        : `${process.env.EXPO_PUBLIC_API_URL || 'https://api.emilytangzhu.com'}${videoUri.startsWith('/') ? videoUri : '/' + videoUri}`;
-      const iframeSrc = `/video.html?src=${encodeURIComponent(videoUrl)}&start=${clip.startTime}&end=${clip.endTime}`;
-
-      return (
-        <View>
-          <View style={styles.previewHint}>
-            <Text style={styles.previewHintText}>
-              💡 播放 {formatDuration(clip.startTime)} - {formatDuration(clip.endTime)} 区间
-            </Text>
-          </View>
-          <View style={styles.iframeContainer}>
-            <iframe
-              ref={iframeRef}
-              src={iframeSrc}
-              style={styles.iframe as any}
-              allow="autoplay; encrypted-media"
-              onLoad={() => setIsPlaying(true)}
-            />
-          </View>
-          <TouchableOpacity style={styles.closeVideoBtn} onPress={() => setShowVideo(false)}>
-            <Text style={styles.closeVideoText}>✕ 关闭</Text>
-          </TouchableOpacity>
-        </View>
-      );
-    }
-
-    // 原生平台：使用 expo-av Video
     return (
       <TouchableOpacity
         style={styles.videoContainer}
@@ -163,14 +120,14 @@ export const ClipCard: React.FC<ClipCardProps> = ({
 
   return (
     <View style={styles.container}>
-      {/* 预览区域 */}
-      {renderPreview()}
+      {/* 原生平台视频 */}
+      {renderNativeVideo()}
 
-      {/* 未播放时显示缩略图 */}
-      {!showVideo && (
+      {/* 未播放时显示缩略图（Web + 原生通用） */}
+      {(!videoUri || isWeb) && (
         <TouchableOpacity
           style={styles.thumbnailContainer}
-          onPress={handleCardPress}
+          onPress={videoUri ? handleWebPlay : () => onPress?.(clip)}
           activeOpacity={0.8}
         >
           <View style={styles.thumbnailBg}>
@@ -264,43 +221,6 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
   },
 
-  // iframe 容器（Web）
-  iframeContainer: {
-    height: 180,
-    backgroundColor: '#000',
-  },
-  iframe: {
-    width: '100%',
-    height: '100%',
-    border: 'none',
-  } as any,
-  previewHint: {
-    backgroundColor: 'rgba(0,0,0,0.8)',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    alignItems: 'center',
-  },
-  previewHintText: {
-    color: '#FFF',
-    fontSize: 11,
-    fontWeight: '500',
-  },
-  closeVideoBtn: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 4,
-    zIndex: 10,
-  },
-  closeVideoText: {
-    color: '#FFF',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-
   // 视频（原生）
   videoContainer: {
     height: 160,
@@ -341,7 +261,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
-  // 缩略图
+  // 缩略图（Web + 原生通用）
   thumbnailContainer: {
     height: 120,
     backgroundColor: '#1A1A2E',
