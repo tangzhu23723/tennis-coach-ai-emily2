@@ -1,0 +1,11 @@
+node_modules
+npm-debug.log
+dist
+.git
+*.md
+Dockerfile
+.dockerignore
+tsconfig.json
+*.log
+.env
+.env.local

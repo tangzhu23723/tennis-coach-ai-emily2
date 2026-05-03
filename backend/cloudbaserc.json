@@ -1,0 +1,19 @@
+{
+  "$schema": "https://static.cloudbase.net/cli/cloudbaserc.schema.json",
+  "envId": "tangzhu-d5g3fxav4f47f5237",
+  "functionRoot": "./dist",
+  "functions": [
+    {
+      "name": "tennis-coach-backend",
+      "timeout": 300,
+      "memorySize": 2048,
+      "handler": "cloud-function.main",
+      "runtime": "Nodejs20.19",
+      "envVariables": {
+        "DEEPSEEK_API_KEY": "",
+        "TCB_ENV_ID": "tangzhu-d5g3fxav4f47f5237"
+      },
+      "description": "TennisCoach AI Backend Service"
+    }
+  ]
+}

@@ -1,32 +1,29 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Video, ResizeMode, AVPlaybackStatus } from 'expo-av';
-import { COLORS, SHOT_TYPES } from '../constants';
+import { COLORS } from '../constants';
 import { Clip } from '../types';
 import { formatDuration, confidenceToPercent, getConfidenceLevel } from '../utils';
-import { VideoPlayerWeb } from './VideoPlayerWeb';
-import { isWeb } from '../utils/platform';
 
 interface ClipCardProps {
   clip: Clip;
   onPress?: (clip: Clip) => void;
   thumbnail?: string;
-  videoUri?: string; // 原始视频URI，用于播放该片段
-  clipIndex?: number; // 片段编号（1, 2, 3...）
-  showAnalysisButton?: boolean; // 是否显示AI分析按钮
-  analysisResult?: string; // AI分析结果（可选）
+  videoUri?: string;
+  clipIndex?: number;
+  showAnalysisButton?: boolean;
+  analysisResult?: string;
 }
 
-// ============================================================
-// 版本: 1.0.6
-// 修复: Web 端使用 HTML5 video 精确控制播放位置
-// 修复: 添加版本号和平台检测
-// ============================================================
-
-export const ClipCard: React.FC<ClipCardProps> = ({ 
-  clip, 
-  onPress, 
-  thumbnail, 
+/**
+ * 版本: 1.0.7
+ * 统一使用 expo-av Video 组件，Web 端使用原生视频控件
+ * 移除自定义 VideoPlayerWeb，避免 React Native Web 兼容性问题
+ */
+export const ClipCard: React.FC<ClipCardProps> = ({
+  clip,
+  onPress,
+  thumbnail,
   videoUri,
   clipIndex,
   showAnalysisButton = false,
@@ -35,31 +32,24 @@ export const ClipCard: React.FC<ClipCardProps> = ({
   const [showVideo, setShowVideo] = useState(false);
   const [showAnalysis, setShowAnalysis] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  
+  const [isPlaying, setIsPlaying] = useState(false);
+
+  const videoRef = useRef<Video>(null);
+  const hasSetInitialPosition = useRef(false);
+
   // 置信度等级
   const confidenceLevel = getConfidenceLevel(clip.confidence);
-  
-  // 模拟AI分析功能
+
+  // 模拟AI分析
   const handleAnalyze = async () => {
     setIsAnalyzing(true);
-    // 模拟AI分析过程
     await new Promise(resolve => setTimeout(resolve, 1500));
     setShowAnalysis(true);
     setIsAnalyzing(false);
   };
-  
-  // Expo AV 相关 (原生平台)
-  const [isPlaying, setIsPlaying] = useState(false);
-  const videoRef = useRef<Video>(null);
-  const hasSetInitialPosition = useRef(false);
 
-  // Web 端视频播放结束回调
-  const handleWebEnded = useCallback(() => {
-    setShowVideo(false);
-  }, []);
-
-  // Expo 视频加载完成
-  const handleExpoLoad = useCallback(async () => {
+  // 视频加载完成，定位到起始时间
+  const handleLoad = useCallback(async () => {
     if (videoRef.current && !hasSetInitialPosition.current) {
       hasSetInitialPosition.current = true;
       try {
@@ -70,25 +60,26 @@ export const ClipCard: React.FC<ClipCardProps> = ({
     }
   }, [clip.startTime]);
 
-  // Expo 播放状态更新
-  const handleExpoPlaybackStatus = useCallback((status: AVPlaybackStatus) => {
+  // 播放状态更新
+  const handlePlaybackStatusUpdate = useCallback((status: AVPlaybackStatus) => {
     if (status.isLoaded) {
       setIsPlaying(status.isPlaying);
       // 到达结束时间停止
       if (status.positionMillis >= clip.endTime * 1000) {
         videoRef.current?.pauseAsync();
+        videoRef.current?.setPositionAsync(clip.endTime * 1000);
       }
     }
   }, [clip.endTime]);
 
-  // Expo 播放/暂停
-  const handleExpoTogglePlay = useCallback(async () => {
+  // 点击播放/暂停
+  const handleTogglePlay = useCallback(async () => {
     if (!videoUri || !videoRef.current) return;
 
     if (isPlaying) {
       await videoRef.current.pauseAsync();
     } else {
-      // 定位到起始时间
+      hasSetInitialPosition.current = false;
       await videoRef.current.setPositionAsync(clip.startTime * 1000);
       await videoRef.current.playAsync();
     }
@@ -108,66 +99,53 @@ export const ClipCard: React.FC<ClipCardProps> = ({
   // 渲染预览区域
   const renderPreview = () => {
     if (showVideo && videoUri) {
-      // Web 平台使用 HTML5 video
-      if (isWeb) {
-        return (
-          <View>
-            {/* 提示：当前播放的是原始视频的特定区间 */}
-            <View style={styles.previewHint}>
-              <Text style={styles.previewHintText}>
-                💡 播放原始视频 {formatDuration(clip.startTime)}-{formatDuration(clip.endTime)} 区间
-              </Text>
-            </View>
-            <VideoPlayerWeb
-              uri={videoUri}
-              startTime={clip.startTime}
-              endTime={clip.endTime}
-              onEnded={handleWebEnded}
-            />
-          </View>
-        );
-      }
-      
-      // 原生平台使用 expo-av
       return (
-        <TouchableOpacity 
-          style={styles.videoContainer} 
-          onPress={handleExpoTogglePlay}
-          activeOpacity={0.9}
-        >
-          <Video
-            ref={videoRef}
-            source={{ uri: videoUri }}
-            style={styles.video}
-            resizeMode={ResizeMode.COVER}
-            shouldPlay={false}
-            isLooping={false}
-            onLoad={handleExpoLoad}
-            onPlaybackStatusUpdate={handleExpoPlaybackStatus}
-            useNativeControls={false}
-          />
-          
-          {/* 播放按钮 */}
-          {!isPlaying && (
-            <View style={styles.playButton}>
-              <Text style={styles.playIcon}>▶️</Text>
-            </View>
-          )}
-          
-          {/* 时间标签 */}
-          <View style={styles.timeLabel}>
-            <Text style={styles.timeLabelText}>
-              {formatDuration(clip.startTime)} → {formatDuration(clip.endTime)}
+        <View>
+          <View style={styles.previewHint}>
+            <Text style={styles.previewHintText}>
+              💡 播放 {formatDuration(clip.startTime)} - {formatDuration(clip.endTime)} 区间
             </Text>
           </View>
-        </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.videoContainer}
+            onPress={handleTogglePlay}
+            activeOpacity={0.9}
+          >
+            <Video
+              ref={videoRef}
+              source={{ uri: videoUri }}
+              style={styles.video}
+              resizeMode={ResizeMode.COVER}
+              shouldPlay={false}
+              isLooping={false}
+              useNativeControls={true}
+              onLoad={handleLoad}
+              onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
+            />
+
+            {/* 播放提示（叠加在视频上） */}
+            {!isPlaying && (
+              <View style={styles.playOverlay}>
+                <Text style={styles.playIcon}>▶️</Text>
+              </View>
+            )}
+
+            {/* 时间范围标签 */}
+            <View style={styles.timeLabel}>
+              <Text style={styles.timeLabelText}>
+                {formatDuration(clip.startTime)} → {formatDuration(clip.endTime)}
+              </Text>
+            </View>
+          </TouchableOpacity>
+        </View>
       );
     }
 
     // 缩略图模式
     return (
-      <TouchableOpacity 
-        style={styles.thumbnailContainer} 
+      <TouchableOpacity
+        style={styles.thumbnailContainer}
         onPress={handleCardPress}
         activeOpacity={0.8}
       >
@@ -179,15 +157,13 @@ export const ClipCard: React.FC<ClipCardProps> = ({
             </View>
           )}
         </View>
-        
-        {/* 播放提示 */}
+
         {videoUri && (
           <View style={styles.playHint}>
             <Text style={styles.playHintText}>▶️ 播放</Text>
           </View>
         )}
-        
-        {/* 时间范围 */}
+
         <View style={styles.durationBadge}>
           <Text style={styles.durationText}>
             {formatDuration(clip.startTime)} - {formatDuration(clip.endTime)}
@@ -199,13 +175,10 @@ export const ClipCard: React.FC<ClipCardProps> = ({
 
   return (
     <View style={styles.container}>
-      {/* 预览区域 */}
       {renderPreview()}
 
-      {/* 详情区域 */}
       <View style={styles.details}>
         <View style={styles.header}>
-          {/* 片段编号 */}
           <View style={styles.clipIndexHeader}>
             <Text style={styles.clipTitle}>
               片段 {clipIndex || ''}
@@ -214,8 +187,7 @@ export const ClipCard: React.FC<ClipCardProps> = ({
               📹 {formatDuration(clip.endTime - clip.startTime)}
             </Text>
           </View>
-          
-          {/* 质量评分 */}
+
           <View
             style={[styles.qualityBadge, { backgroundColor: confidenceLevel.color + '30' }]}
           >
@@ -225,18 +197,14 @@ export const ClipCard: React.FC<ClipCardProps> = ({
           </View>
         </View>
 
-        {/* 描述 */}
         {clip.description && (
-          <Text style={styles.description}>
-            {clip.description}
-          </Text>
+          <Text style={styles.description}>{clip.description}</Text>
         )}
 
-        {/* AI分析按钮或结果 */}
         {showAnalysisButton && (
           <View style={styles.analysisSection}>
             {!showAnalysis ? (
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.analyzeButton}
                 onPress={handleAnalyze}
                 disabled={isAnalyzing}
@@ -275,16 +243,19 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
   },
-  
-  // 视频容器
+
+  // 视频
   videoContainer: {
-    height: 140,
+    height: 160,
     backgroundColor: '#000',
     justifyContent: 'center',
     alignItems: 'center',
     position: 'relative',
   },
-  // 预览提示
+  video: {
+    width: '100%',
+    height: '100%',
+  },
   previewHint: {
     backgroundColor: 'rgba(0,0,0,0.8)',
     paddingVertical: 6,
@@ -296,11 +267,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '500',
   },
-  video: {
-    width: '100%',
-    height: '100%',
-  },
-  playButton: {
+  playOverlay: {
     position: 'absolute',
     width: 60,
     height: 60,
@@ -327,7 +294,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
-  
+
   // 缩略图
   thumbnailContainer: {
     height: 120,
@@ -391,7 +358,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '500',
   },
-  
+
   // 详情
   details: {
     padding: 14,
@@ -431,8 +398,8 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     marginBottom: 12,
   },
-  
-  // AI分析区域
+
+  // AI分析
   analysisSection: {
     marginTop: 12,
     paddingTop: 12,
@@ -469,7 +436,7 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     lineHeight: 20,
   },
-  
+
   footer: {
     flexDirection: 'row',
     justifyContent: 'flex-start',
