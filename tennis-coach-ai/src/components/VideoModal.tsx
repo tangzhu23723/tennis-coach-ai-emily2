@@ -1,6 +1,5 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { View, StyleSheet, TouchableOpacity, Text } from 'react-native';
-import { isWeb } from '../utils/platform';
 import { COLORS } from '../constants';
 
 interface VideoModalProps {
@@ -24,7 +23,7 @@ export const VideoModal: React.FC<VideoModalProps> = ({
 }) => {
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
-  if (!visible || !isWeb) return null;
+  if (!visible) return null;
 
   const videoUrl = videoUri.startsWith('blob:')
     ? videoUri
