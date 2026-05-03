@@ -63,12 +63,19 @@ export const VideoPlayerWeb: React.FC<VideoPlayerWebProps> = ({
         setIsLoading(false);
         return;
       }
+    }
+  }, []);
+
+  // 视频可以播放时（数据足够，可以 seek）
+  const handleCanPlay = useCallback(() => {
+    if (videoRef.current) {
+      console.log('[VideoPlayerWeb] 视频可播放，readyState:', videoRef.current.readyState);
       
-      // ✅ 关键：设置起始时间
+      // ✅ 关键：只有在视频数据充足时才能设置起始时间
       videoRef.current.currentTime = startTime;
       setIsLoading(false);
       setCurrentTime(startTime);
-      setError(null); // 清除之前的错误
+      setError(null);
     }
   }, [startTime]);
 
@@ -168,12 +175,13 @@ export const VideoPlayerWeb: React.FC<VideoPlayerWebProps> = ({
         src={uri}
         style={styles.video}
         onLoadedMetadata={handleLoadedMetadata}
+        onCanPlay={handleCanPlay}
         onTimeUpdate={handleTimeUpdate}
         onPlay={() => setIsPlaying(true)}
         onPause={() => setIsPlaying(false)}
         onEnded={onEnded}
         onError={handleError}
-        preload="metadata"
+        preload="auto"
         playsInline
       />
 
