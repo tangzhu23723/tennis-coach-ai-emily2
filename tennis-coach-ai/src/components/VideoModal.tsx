@@ -10,10 +10,9 @@ interface VideoModalProps {
   onClose: () => void;
 }
 
-/**
- * Web 端全局视频弹窗 - 单例模式
- * 同一时间只有一个 video 元素，彻底避免多 iframe 冲突
- */
+// ============================================================
+// TennisCoach AI v2.6.0 - Global Video Modal (BUILT: 20260503)
+// ============================================================
 export const VideoModal: React.FC<VideoModalProps> = ({
   visible,
   videoUri,

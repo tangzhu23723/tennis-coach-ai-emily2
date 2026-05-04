@@ -123,7 +123,14 @@ export const useAppStore = create<AppState>()(
       name: 'tennis-coach-storage',
       storage: createJSONStorage(() => AsyncStorage),
       partialize: (state) => ({
-        videoHistory: state.videoHistory,
+        // 只存必要字段，避免 videoUrl/localUri 太大导致 localStorage 爆满
+        videoHistory: state.videoHistory.map(({ id, title, uploadTime, duration, status }) => ({
+          id,
+          title,
+          uploadTime,
+          duration,
+          status,
+        })),
         theme: state.theme,
       }),
     }
